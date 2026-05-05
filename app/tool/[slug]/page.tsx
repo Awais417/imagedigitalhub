@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { TOOLS } from '../../lib/tools';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://imgdigitalapi-production.up.railway.app/api';
 
 export default function ToolPage() {
   const { slug } = useParams<{ slug: string }>();
