@@ -26,13 +26,13 @@ export interface Tool {
 }
 
 export const CATEGORIES = [
-  // { id: 'organize',   label: 'Merge, Split & Organize', color: '#3b82f6', icon: '🔀' },
-  // { id: 'optimize',   label: 'Document Optimization',   color: '#06b6d4', icon: '⚡' },
+  { id: 'organize',   label: 'Merge, Split & Organize', color: '#3b82f6', icon: '🔀' },
+  { id: 'optimize',   label: 'Document Optimization',   color: '#06b6d4', icon: '⚡' },
   { id: 'to-pdf',     label: 'Convert TO PDF',          color: '#22c55e', icon: '⬆️' },
   { id: 'from-pdf',   label: 'Convert FROM PDF',        color: '#16a34a', icon: '⬇️' },
-  // { id: 'edit',       label: 'Content Editing',         color: '#f97316', icon: '✏️' },
-  // { id: 'security',   label: 'Security & Sign',         color: '#ef4444', icon: '🔒' },
-  // { id: 'standards',  label: 'Technical Standards',     color: '#eab308', icon: '🏅' },
+  { id: 'edit',       label: 'Content Editing',         color: '#f97316', icon: '✏️' },
+  { id: 'security',   label: 'Security & Sign',         color: '#ef4444', icon: '🔒' },
+  { id: 'standards',  label: 'Technical Standards',     color: '#eab308', icon: '🏅' },
 ];
 
 export const TOOLS: Tool[] = [
