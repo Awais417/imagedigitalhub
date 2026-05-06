@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { TOOLS } from '../../lib/tools';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://imgdigitalapi-production.up.railway.app/api';
@@ -108,17 +109,21 @@ export default function ToolPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className="shadow-sm border-b sticky top-0 z-50" style={{ backgroundColor: '#f2f4f4', borderColor: '#1e7ea1' }}>
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm font-bold">P</span>
-            </div>
-            <span className="font-extrabold text-gray-900">PDF HUB</span>
+          <Link href="/" className="flex items-center group">
+            <Image
+              src="/Website Logo.png"
+              alt="GoDocLab"
+              width={140}
+              height={40}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           </Link>
           <Link
             href="/"
-            className="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1 transition"
+            className="text-sm text-white/80 hover:text-white flex items-center gap-1 transition"
           >
             ← All Tools
           </Link>

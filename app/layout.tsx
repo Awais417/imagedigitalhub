@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PDF Hub — Every PDF Tool You Need",
-  description: "Merge, split, compress, convert, rotate, watermark, protect PDFs and more. All powered by iLovePDF API.",
+  title: "GoDocLab — Every PDF Tool You Need",
+  description: "Merge, split, compress, convert, rotate, watermark, protect PDFs and more. All tools in one place at GoDocLab.com.",
 };
 
 export default function RootLayout({

@@ -1,23 +1,25 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { TOOLS, CATEGORIES } from './lib/tools';
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ── Header ── */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className="shadow-sm border-b sticky top-0 z-50" style={{ backgroundColor: '#f2f4f4', borderColor: '#1e7ea1' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-md">
-              <span className="text-white text-lg font-bold">P</span>
-            </div>
-            <div>
-              <span className="text-2xl font-extrabold text-gray-900 tracking-tight">PDF</span>
-              <span className="text-2xl font-extrabold text-red-600 tracking-tight"> HUB</span>
-            </div>
+          <div className="flex items-center">
+            <Image
+              src="/Website Logo.png"
+              alt="GoDocLab"
+              width={160}
+              height={48}
+              className="h-12 w-auto object-contain"
+              priority
+            />
           </div>
-          <p className="hidden sm:block text-sm text-gray-500">
-            Powered by iLovePDF API — All tools in one place
+          <p className="hidden sm:block text-sm text-white/80" style={{color:"#2596be"}}>
+              All tools in one place
           </p>
         </div>
       </header>
@@ -106,15 +108,18 @@ export default function Home() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="bg-white border-t border-gray-200 py-8">
+      <footer className="bg-white border-t border-gray-200 py-8" style={{background:"#f2f4f4"}}>
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="w-6 h-6 bg-red-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-xs font-bold">P</span>
-            </div>
-            <span className="font-bold text-gray-800">PDF HUB</span>
+          <div className="flex items-center justify-center mb-2">
+            <Image
+              src="/Website Logo.png"
+              alt="GoDocLab"
+              width={120}
+              height={36}
+              className="h-9 w-auto object-contain"
+            />
           </div>
-          <p className="text-sm text-gray-400">Powered by iLovePDF API · {TOOLS.length} PDF tools</p>
+          <p className="text-sm text-gray-400">Powered by · {TOOLS.length} PDF tools</p>
         </div>
       </footer>
     </div>
