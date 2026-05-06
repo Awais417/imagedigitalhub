@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { TOOLS } from '../../lib/tools';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://imgdigitalapi-production.up.railway.app/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://imgagedigitalapis.netlify.app/api';
 
 export default function ToolClient({ slug }: { slug: string }) {
   const tool = TOOLS.find((t) => t.slug === slug);

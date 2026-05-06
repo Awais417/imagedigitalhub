@@ -5,6 +5,7 @@ export function generateStaticParams() {
   return TOOLS.map((tool) => ({ slug: tool.slug }));
 }
 
-export default function ToolPage({ params }: { params: { slug: string } }) {
-  return <ToolClient slug={params.slug} />;
+export default async function ToolPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return <ToolClient slug={slug} />;
 }
