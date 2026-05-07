@@ -258,6 +258,8 @@ export default function ToolClient({ slug }: { slug: string }) {
                       type={param.type}
                       value={params[param.name] ?? ''}
                       placeholder={param.placeholder}
+                      min={param.name === 'rotation' ? 0 : undefined}
+                      max={param.name === 'rotation' ? 360 : undefined}
                       onChange={(e) =>
                         setParams((prev) => ({ ...prev, [param.name]: e.target.value }))
                       }
