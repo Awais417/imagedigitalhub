@@ -3,9 +3,10 @@
 import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import Swal from 'sweetalert2';
 import { TOOLS } from '../../lib/tools';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://imgagedigitalapis.netlify.app/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://16.171.15.111:3000/api';
 
 export default function ToolClient({ slug }: { slug: string }) {
   const tool = TOOLS.find((t) => t.slug === slug);
@@ -45,6 +46,18 @@ export default function ToolClient({ slug }: { slug: string }) {
 
   const handleSubmit = async () => {
     if (!tool || files.length === 0) return;
+
+    if (tool.multipleFiles && files.length < 2) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'More files needed',
+        text: 'Please upload at least 2 PDF files to merge.',
+        confirmButtonText: 'Got it',
+        confirmButtonColor: '#2596be',
+      });
+      return;
+    }
+
     setLoading(true);
     setError('');
     setDownloadUrl('');
