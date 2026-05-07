@@ -487,7 +487,7 @@ export const TOOLS: Tool[] = [
       },
       { name: 'font_size', label: 'Font Size', type: 'number', defaultValue: 40 },
       { name: 'transparency', label: 'Transparency (0-100)', type: 'number', defaultValue: 50 },
-      { name: 'rotation', label: 'Rotation (degrees)', type: 'number', defaultValue: -45 },
+      { name: 'rotation', label: 'Rotation (degrees, 0–360)', type: 'number', defaultValue: 315 },
       { name: 'font_color', label: 'Color', type: 'color', defaultValue: '#FF0000' },
     ],
   },
