@@ -6,7 +6,7 @@ import Image from 'next/image';
 import Swal from 'sweetalert2';
 import { TOOLS } from '../../lib/tools';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://16.171.15.111:4000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://16-171-15-111.sslip.io/api';
 
 export default function ToolClient({ slug }: { slug: string }) {
   const tool = TOOLS.find((t) => t.slug === slug);
