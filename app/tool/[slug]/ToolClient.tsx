@@ -11,13 +11,13 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.godoclab.com/ap
 export default function ToolClient({ slug }: { slug: string }) {
   const tool = TOOLS.find((t) => t.slug === slug);
 
-  const [files, setFiles]           = useState<File[]>([]);
-  const [dragging, setDragging]     = useState(false);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState('');
+  const [files, setFiles]             = useState<File[]>([]);
+  const [dragging, setDragging]       = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState('');
   const [downloadUrl, setDownloadUrl] = useState('');
   const [downloadName, setDownloadName] = useState('');
-  const [params, setParams]         = useState<Record<string, string>>(() => {
+  const [params, setParams]           = useState<Record<string, string>>(() => {
     if (!tool?.params) return {};
     return Object.fromEntries(
       (tool.params ?? []).map((p) => [p.name, String(p.defaultValue ?? '')])
@@ -45,13 +45,15 @@ export default function ToolClient({ slug }: { slug: string }) {
   };
 
   const handleSubmit = async () => {
-    if (!tool || files.length === 0) return;
+    const hasFile = files.length > 0;
+    const hasUrl  = tool?.fileOptional && params['url']?.trim();
+    if (!tool || (!hasFile && !hasUrl)) return;
 
     if (tool.multipleFiles && files.length < 2) {
       Swal.fire({
         icon: 'warning',
         title: 'More files needed',
-        text: 'Please upload at least 2 PDF files to merge.',
+        text: 'Please upload at least 2 files.',
         confirmButtonText: 'Got it',
         confirmButtonColor: '#2596be',
       });
@@ -66,7 +68,7 @@ export default function ToolClient({ slug }: { slug: string }) {
       const formData = new FormData();
       if (tool.multipleFiles) {
         files.forEach((f) => formData.append('files', f));
-      } else {
+      } else if (files.length > 0) {
         formData.append('file', files[0]);
       }
       Object.entries(params).forEach(([k, v]) => {
@@ -84,7 +86,7 @@ export default function ToolClient({ slug }: { slug: string }) {
       }
 
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const url  = URL.createObjectURL(blob);
       setDownloadUrl(url);
       setDownloadName(tool.outputFormat);
     } catch (err) {
@@ -101,14 +103,19 @@ export default function ToolClient({ slug }: { slug: string }) {
     if (inputRef.current) inputRef.current.value = '';
   };
 
+  /* ── 404 ── */
   if (!tool) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f4f6f8' }}>
         <div className="text-center">
           <p className="text-6xl mb-4">🔍</p>
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Tool Not Found</h1>
           <p className="text-gray-500 mb-6">The tool you&apos;re looking for doesn&apos;t exist.</p>
-          <Link href="/" className="px-6 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold transition-all hover:opacity-90 shadow-md"
+            style={{ background: '#2596be' }}
+          >
             ← Back to Hub
           </Link>
         </div>
@@ -116,15 +123,24 @@ export default function ToolClient({ slug }: { slug: string }) {
     );
   }
 
+  /* ── helpers ── */
+  const isImageTool = tool.category.startsWith('img-');
+  const accentColor = tool.color;
+  const canSubmit   = files.length > 0 || (!!tool.fileOptional && !!params['url']?.trim());
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="shadow-sm border-b sticky top-0 z-50" style={{ backgroundColor: '#2596be', borderColor: '#1e7ea1' }}>
+    <div className="min-h-screen" style={{ background: '#f4f6f8' }}>
+
+      {/* ── Header ── */}
+      <header
+        className="sticky top-0 z-50 border-b"
+        style={{ background: '#ffffff', borderColor: '#e5e7eb', boxShadow: '0 1px 12px rgba(37,150,190,0.08)' }}
+      >
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center group">
+          <Link href="/" className="flex items-center gap-2">
             <Image
               src="/Website Logo.png"
-              alt="GoDocLab"
+              alt="Digital Hub"
               width={140}
               height={40}
               className="h-10 w-auto object-contain"
@@ -133,44 +149,78 @@ export default function ToolClient({ slug }: { slug: string }) {
           </Link>
           <Link
             href="/"
-            className="text-sm text-white/80 hover:text-white flex items-center gap-1 transition"
+            className="flex items-center gap-1.5 text-sm font-semibold transition-all hover:opacity-70"
+            style={{ color: accentColor }}
           >
-            ← All Tools
+            <span>←</span> All Tools
           </Link>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-10">
-        {/* Tool Header */}
+
+        {/* ── Tool Hero ── */}
         <div className="text-center mb-8">
           <div
             className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-4 shadow-lg"
-            style={{ backgroundColor: tool.bgColor }}
+            style={{ background: `linear-gradient(135deg, ${tool.bgColor}, ${tool.borderColor})`, border: `2px solid ${tool.borderColor}` }}
           >
             {tool.icon}
           </div>
+          <div
+            className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-3"
+            style={{ background: tool.bgColor, color: accentColor }}
+          >
+            {isImageTool ? 'Image Tool' : 'PDF Tool'}
+          </div>
           <h1 className="text-3xl font-extrabold text-gray-900 mb-2">{tool.name}</h1>
-          <p className="text-gray-500 text-lg">{tool.description}</p>
+          <p className="text-gray-500 text-base max-w-md mx-auto">{tool.description}</p>
         </div>
 
-        {/* Upload Area */}
+        {/* ── Steps indicator ── */}
+        <div className="flex items-center justify-center gap-2 mb-8 select-none">
+          {['Upload', 'Configure', 'Download'].map((step, i) => (
+            <div key={step} className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                style={{
+                  background: i === 0 ? accentColor : '#e5e7eb',
+                  color:      i === 0 ? '#fff'       : '#9ca3af',
+                }}
+              >
+                <span
+                  className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black"
+                  style={{ background: i === 0 ? 'rgba(255,255,255,0.25)' : '#d1d5db', color: i === 0 ? '#fff' : '#6b7280' }}
+                >
+                  {i + 1}
+                </span>
+                {step}
+              </div>
+              {i < 2 && <span className="text-gray-300 text-xs">›</span>}
+            </div>
+          ))}
+        </div>
+
+        {/* ── Upload / Drop Zone ── */}
         {!downloadUrl && (
           <div
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
             onClick={() => inputRef.current?.click()}
-            className={`border-3 rounded-3xl p-10 text-center cursor-pointer transition-all duration-200 mb-6 ${
-              dragging
-                ? 'border-dashed scale-[1.02] shadow-lg'
-                : 'border-dashed hover:shadow-md'
-            }`}
+            className="relative rounded-3xl p-10 text-center cursor-pointer transition-all duration-200 mb-5 overflow-hidden"
             style={{
-              borderColor: dragging ? tool.color : tool.borderColor,
-              backgroundColor: dragging ? tool.bgColor : '#ffffff',
-              borderWidth: '2px',
+              border: `2px dashed ${dragging ? accentColor : tool.borderColor}`,
+              background: dragging ? tool.bgColor : '#ffffff',
+              boxShadow: dragging ? `0 0 0 4px ${accentColor}22` : '0 1px 6px rgba(0,0,0,0.04)',
             }}
           >
+            {/* Subtle background pattern */}
+            <div
+              className="absolute inset-0 pointer-events-none opacity-[0.03]"
+              style={{ backgroundImage: `repeating-linear-gradient(45deg, ${accentColor} 0, ${accentColor} 1px, transparent 0, transparent 50%)`, backgroundSize: '20px 20px' }}
+            />
+
             <input
               ref={inputRef}
               type="file"
@@ -179,52 +229,77 @@ export default function ToolClient({ slug }: { slug: string }) {
               onChange={handleFileChange}
               className="hidden"
             />
-            <div className="text-5xl mb-4">
-              {files.length > 0 ? '✅' : '☁️'}
+
+            <div className="relative">
+              {files.length > 0 ? (
+                <div>
+                  <div className="text-5xl mb-3">✅</div>
+                  <p className="font-bold text-gray-800 text-lg mb-1">
+                    {files.length === 1 ? files[0].name : `${files.length} files selected`}
+                  </p>
+                  <p className="text-gray-400 text-sm mb-1">
+                    {files.length === 1
+                      ? `${(files[0].size / 1024 / 1024).toFixed(2)} MB`
+                      : files.map((f) => f.name).join(', ')}
+                  </p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleReset(); }}
+                    className="mt-3 text-xs font-semibold px-3 py-1 rounded-full transition-all hover:opacity-80"
+                    style={{ background: '#fee2e2', color: '#ef4444' }}
+                  >
+                    ✕ Remove file{files.length > 1 ? 's' : ''}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4"
+                    style={{ background: tool.bgColor }}
+                  >
+                    ☁️
+                  </div>
+                  <p className="text-base font-bold text-gray-700 mb-1">
+                    {tool.inputLabel}
+                  </p>
+                  <p className="text-sm text-gray-400 mb-4">
+                    Drag &amp; drop here, or{' '}
+                    <span className="font-semibold" style={{ color: accentColor }}>
+                      click to browse
+                    </span>
+                  </p>
+                  <div
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                    style={{ background: tool.bgColor, color: accentColor, border: `1px solid ${tool.borderColor}` }}
+                  >
+                    Supported: {tool.acceptedFormats.toUpperCase().replace(/\./g, '').replace(/,/g, ' · ')}
+                  </div>
+                  <p className="text-xs text-gray-300 mt-2">Max 100 MB</p>
+                </div>
+              )}
             </div>
-            {files.length > 0 ? (
-              <div>
-                <p className="font-semibold text-gray-800 text-lg mb-1">
-                  {files.length === 1 ? files[0].name : `${files.length} files selected`}
-                </p>
-                <p className="text-gray-400 text-sm">
-                  {files.length === 1
-                    ? `${(files[0].size / 1024 / 1024).toFixed(2)} MB`
-                    : files.map((f) => f.name).join(', ')}
-                </p>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleReset(); }}
-                  className="mt-3 text-xs text-red-500 hover:text-red-700 underline"
-                >
-                  Remove file{files.length > 1 ? 's' : ''}
-                </button>
-              </div>
-            ) : (
-              <div>
-                <p className="text-lg font-semibold text-gray-700 mb-1">
-                  {tool.inputLabel}
-                </p>
-                <p className="text-gray-400 text-sm mb-3">
-                  Drag & drop here, or click to browse
-                </p>
-                <p className="text-xs text-gray-300">
-                  Supported: {tool.acceptedFormats.toUpperCase().replace(/\./g, '').replace(/,/g, ', ')} · Max 100 MB
-                </p>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Parameters */}
-        {!downloadUrl && tool.params && tool.params.length > 0 && files.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 shadow-sm">
-            <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wide">
-              Options
-            </h3>
+        {/* ── Parameters ── */}
+        {!downloadUrl && tool.params && tool.params.length > 0 && (files.length > 0 || tool.fileOptional) && (
+          <div
+            className="rounded-2xl p-6 mb-5"
+            style={{ background: '#ffffff', border: '1.5px solid #e5e7eb', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}
+          >
+            <div className="flex items-center gap-2 mb-5">
+              <div
+                className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
+                style={{ background: accentColor, color: '#fff' }}
+              >
+                ⚙
+              </div>
+              <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Options</h3>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {tool.params.map((param) => (
                 <div key={param.name}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide">
                     {param.label}
                   </label>
                   {param.type === 'select' ? (
@@ -233,37 +308,46 @@ export default function ToolClient({ slug }: { slug: string }) {
                       onChange={(e) =>
                         setParams((prev) => ({ ...prev, [param.name]: e.target.value }))
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 bg-gray-50"
+                      className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
+                      style={{
+                        border: '1.5px solid #e5e7eb',
+                        background: '#f9fafb',
+                        color: '#111827',
+                      }}
                     >
                       {param.options?.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
+                        <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   ) : param.type === 'color' ? (
-                    <div className="flex items-center gap-2">
+                    <div
+                      className="flex items-center gap-3 px-3 py-2 rounded-xl"
+                      style={{ border: '1.5px solid #e5e7eb', background: '#f9fafb' }}
+                    >
                       <input
                         type="color"
                         value={params[param.name] ?? '#000000'}
                         onChange={(e) =>
                           setParams((prev) => ({ ...prev, [param.name]: e.target.value }))
                         }
-                        className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer"
+                        className="w-9 h-9 rounded-lg border-0 cursor-pointer bg-transparent"
                       />
-                      <span className="text-sm text-gray-500">{params[param.name]}</span>
+                      <span className="text-sm font-mono text-gray-600">{params[param.name]}</span>
                     </div>
                   ) : (
                     <input
                       type={param.type}
                       value={params[param.name] ?? ''}
                       placeholder={param.placeholder}
-                      min={param.name === 'rotation' ? 0 : undefined}
-                      max={param.name === 'rotation' ? 360 : undefined}
                       onChange={(e) =>
                         setParams((prev) => ({ ...prev, [param.name]: e.target.value }))
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 bg-gray-50"
+                      className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
+                      style={{
+                        border: '1.5px solid #e5e7eb',
+                        background: '#f9fafb',
+                        color: '#111827',
+                      }}
                     />
                   )}
                 </div>
@@ -272,13 +356,17 @@ export default function ToolClient({ slug }: { slug: string }) {
           </div>
         )}
 
-        {/* Process Button */}
-        {!downloadUrl && files.length > 0 && (
+        {/* ── Process Button ── */}
+        {!downloadUrl && canSubmit && (
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full py-4 rounded-2xl text-white font-bold text-lg transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ backgroundColor: loading ? '#9ca3af' : tool.color }}
+            className="w-full py-4 rounded-2xl text-white font-extrabold text-lg transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden"
+            style={{
+              background: loading
+                ? '#9ca3af'
+                : `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
+            }}
           >
             {loading ? (
               <span className="flex items-center justify-center gap-3">
@@ -286,61 +374,80 @@ export default function ToolClient({ slug }: { slug: string }) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
-                Processing...
+                Processing your file...
               </span>
             ) : (
-              `Process ${tool.name} →`
+              <span className="flex items-center justify-center gap-2">
+                Process {tool.name}
+                <span className="text-xl">→</span>
+              </span>
             )}
           </button>
         )}
 
-        {/* Error */}
+        {/* ── Error ── */}
         {error && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
-            <span className="text-red-500 text-xl">⚠️</span>
+          <div
+            className="mt-4 p-4 rounded-2xl flex items-start gap-3"
+            style={{ background: '#fef2f2', border: '1.5px solid #fecaca' }}
+          >
+            <span className="text-xl shrink-0">⚠️</span>
             <div>
-              <p className="font-semibold text-red-700 text-sm">Processing Failed</p>
+              <p className="font-bold text-red-700 text-sm">Processing Failed</p>
               <p className="text-red-600 text-sm mt-0.5">{error}</p>
             </div>
           </div>
         )}
 
-        {/* Download */}
+        {/* ── Download Card ── */}
         {downloadUrl && (
           <div
-            className="bg-white rounded-3xl border-2 p-8 text-center shadow-lg"
-            style={{ borderColor: tool.borderColor }}
+            className="rounded-3xl p-10 text-center"
+            style={{
+              background: '#ffffff',
+              border: `2px solid ${tool.borderColor}`,
+              boxShadow: `0 8px 40px ${accentColor}22`,
+            }}
           >
-            <div className="text-5xl mb-4">🎉</div>
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto mb-4 shadow-lg"
+              style={{ background: `linear-gradient(135deg, ${tool.bgColor}, ${tool.borderColor})` }}
+            >
+              🎉
+            </div>
             <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Ready to Download!</h2>
-            <p className="text-gray-500 mb-6">Your file has been processed successfully.</p>
+            <p className="text-gray-400 text-sm mb-7">Your file has been processed successfully.</p>
             <a
               href={downloadUrl}
               download={downloadName}
-              className="inline-block px-8 py-4 rounded-2xl text-white font-bold text-lg transition-all duration-200 shadow-md hover:shadow-lg hover:opacity-90 mb-4"
-              style={{ backgroundColor: tool.color }}
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-white font-extrabold text-lg transition-all duration-200 shadow-md hover:shadow-xl hover:opacity-90 mb-5"
+              style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}bb)` }}
             >
               ⬇️ Download {downloadName}
             </a>
             <br />
             <button
               onClick={handleReset}
-              className="mt-2 text-sm text-gray-400 hover:text-gray-600 underline transition"
+              className="text-sm font-semibold transition-colors hover:opacity-70"
+              style={{ color: accentColor }}
             >
-              Process another file
+              ↺ Process another file
             </button>
           </div>
         )}
 
-        {/* How it works */}
-        <div className="mt-10 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-          <h3 className="font-bold text-gray-700 mb-4 text-sm uppercase tracking-wide">
-            How to use {tool.name}
+        {/* ── How it works ── */}
+        <div
+          className="mt-8 rounded-2xl p-6"
+          style={{ background: '#ffffff', border: '1.5px solid #e5e7eb', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}
+        >
+          <h3 className="font-bold text-gray-700 mb-5 text-sm uppercase tracking-widest flex items-center gap-2">
+            <span>📖</span> How to use {tool.name}
           </h3>
           <ol className="space-y-3">
             {[
-              `Upload your ${tool.acceptedFormats.replace(/\./g, '').toUpperCase()} file`,
-              tool.params && tool.params.length > 0 ? 'Configure the options as needed' : null,
+              `Upload your ${tool.acceptedFormats.replace(/\./g, '').toUpperCase().replace(/,/g, ' / ')} file`,
+              tool.params && tool.params.length > 0 ? 'Configure the options to your needs' : null,
               `Click "Process ${tool.name}"`,
               `Download your ${tool.outputFormat}`,
             ]
@@ -348,8 +455,8 @@ export default function ToolClient({ slug }: { slug: string }) {
               .map((step, i) => (
                 <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
                   <span
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5"
-                    style={{ backgroundColor: tool.color }}
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-extrabold shrink-0 mt-0.5 shadow-sm"
+                    style={{ background: accentColor }}
                   >
                     {i + 1}
                   </span>
@@ -360,8 +467,12 @@ export default function ToolClient({ slug }: { slug: string }) {
         </div>
 
         <div className="mt-8 text-center">
-          <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 transition">
-            ← Back to all PDF tools
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-sm font-semibold transition-all hover:opacity-70"
+            style={{ color: accentColor }}
+          >
+            ← Back to all tools
           </Link>
         </div>
       </main>
