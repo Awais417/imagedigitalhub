@@ -470,8 +470,8 @@ export const TOOLS: Tool[] = [
   // ─── Convert FROM PDF ──────────────────────────────────────────────────────
   {
     slug: 'pdf-to-image',
-    name: 'PDF to JPG',
-    description: 'Convert each PDF page to a JPG image (output as ZIP)',
+    name: 'PDF to Image',
+    description: 'Convert each PDF page to a JPG or PNG image (single page returned directly, multi-page as ZIP)',
     icon: '🖼️',
     color: '#16a34a',
     bgColor: '#f0fdf4',
@@ -483,6 +483,29 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'images.zip',
     outputMime: 'application/zip',
+    params: [
+      {
+        name: 'format',
+        label: 'Image format',
+        type: 'select',
+        options: [
+          { value: 'jpg', label: 'JPEG (smaller file)' },
+          { value: 'png', label: 'PNG (lossless)' },
+        ],
+        defaultValue: 'jpg',
+      },
+      {
+        name: 'dpi',
+        label: 'Resolution (DPI)',
+        type: 'select',
+        options: [
+          { value: '96',  label: '96 DPI  – screen' },
+          { value: '150', label: '150 DPI – standard' },
+          { value: '300', label: '300 DPI – print quality' },
+        ],
+        defaultValue: '150',
+      },
+    ],
   },
   {
     slug: 'extract',
