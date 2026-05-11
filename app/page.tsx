@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { TOOLS, CATEGORIES } from './lib/tools';
 import { SidebarNav } from './components/SidebarNav';
 import { Navbar } from './components/Navbar';
-import { ToolIcon } from './components/ToolIcon';
+import { ToolIcon, CategoryIcon } from './components/ToolIcon';
 
 const pdfCategories   = CATEGORIES.filter((c) => !c.id.startsWith('img-'));
 const imageCategories = CATEGORIES.filter((c) =>  c.id.startsWith('img-'));
@@ -138,15 +138,16 @@ export default function Home() {
               height={42}
               className="h-10 w-auto object-contain brightness-0 invert"
             />
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex flex-wrap justify-center gap-3">
               {CATEGORIES.map((cat) => (
                 <a
                   key={cat.id}
                   href={`#${cat.id}`}
-                  className="text-xs font-medium transition-colors hover:text-white"
+                  className="flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-white"
                   style={{ color: '#64748b' }}
                 >
-                  {cat.icon} {cat.label}
+                  <CategoryIcon catId={cat.id} size={20} />
+                  {cat.label}
                 </a>
               ))}
             </div>
@@ -182,12 +183,7 @@ function CategorySection({
     <section id={category.id} className="mb-5 scroll-mt-20">
       {/* Compact header */}
       <div className="flex items-center gap-2 mb-2">
-        <div
-          className="w-6 h-6 rounded-md flex items-center justify-center text-white text-xs shadow-sm shrink-0"
-          style={{ background: category.color }}
-        >
-          {category.icon}
-        </div>
+        <CategoryIcon catId={category.id} size={24} />
         <h3 className="text-sm font-bold text-gray-800">{category.label}</h3>
         <span className="text-xs text-gray-400">({tools.length})</span>
         <div className="flex-1 h-px ml-1" style={{ background: 'linear-gradient(90deg,#e5e7eb,transparent)' }} />

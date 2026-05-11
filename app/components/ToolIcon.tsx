@@ -570,3 +570,35 @@ export function ToolIcon({ slug }: { slug: string }) {
     default:               return <ImageIcon />;
   }
 }
+
+// ── Category → representative tool slug ──────────────────────────────────────
+const CAT_SLUG: Record<string, string> = {
+  'organize':    'merge',
+  'optimize':    'compress',
+  'to-pdf':      'word-to-pdf',
+  'from-pdf':    'pdf-to-word',
+  'edit':        'watermark',
+  'security':    'protect',
+  'forms':       'create-form',
+  'standards':   'pdf-to-pdfa',
+  'img-convert': 'jpg-to-png',
+  'img-size':    'image-resize',
+  'img-enhance': 'image-unblur',
+  'img-edit':    'remove-background',
+};
+
+export function CategoryIcon({ catId, size = 28 }: { catId: string; size?: number }) {
+  const slug = CAT_SLUG[catId] ?? 'compress';
+  // Re-render ToolIcon but scaled to `size`
+  // Wrap in a fixed-size box so the 40×40 SVG scales down
+  return (
+    <span
+      className="inline-flex items-center justify-center shrink-0"
+      style={{ width: size, height: size, overflow: 'hidden' }}
+    >
+      <span style={{ transform: `scale(${size / 40})`, transformOrigin: 'top left', display: 'block', width: 40, height: 40 }}>
+        <ToolIcon slug={slug} />
+      </span>
+    </span>
+  );
+}
