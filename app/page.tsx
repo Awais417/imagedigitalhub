@@ -61,8 +61,8 @@ export default function Home() {
         className="relative overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #2596be 100%)',
-          paddingTop: '3.5rem',
-          paddingBottom: '3.5rem',
+          paddingTop: '2rem',
+          paddingBottom: '2rem',
         }}
       >
         <div
@@ -119,14 +119,14 @@ export default function Home() {
           {/* PDF section banner */}
           <div
             id="pdf-section"
-            className="flex items-center gap-4 rounded-2xl px-5 py-4 mb-6"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 mb-4"
             style={{ background: 'linear-gradient(90deg,#1d4ed8,#2596be)', color: '#fff' }}
           >
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shrink-0">📄</div>
+            <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-xl shrink-0">📄</div>
             <div>
-              <h2 className="text-lg font-black">PDF Document Tools</h2>
-              <p className="text-sm text-blue-100">
-                {TOOLS.filter((t) => !t.category.startsWith('img-')).length} tools to manage, convert and edit your PDFs
+              <h2 className="text-base font-black leading-tight">PDF Document Tools</h2>
+              <p className="text-xs text-blue-100">
+                {TOOLS.filter((t) => !t.category.startsWith('img-')).length} tools · convert, edit &amp; manage PDFs
               </p>
             </div>
           </div>
@@ -140,14 +140,14 @@ export default function Home() {
           {/* Image section banner */}
           <div
             id="img-section"
-            className="flex items-center gap-4 rounded-2xl px-5 py-4 mb-6 mt-10"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 mb-4 mt-6"
             style={{ background: 'linear-gradient(90deg,#7c3aed,#ec4899)', color: '#fff' }}
           >
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shrink-0">🖼️</div>
+            <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-xl shrink-0">🖼️</div>
             <div>
-              <h2 className="text-lg font-black">Digital Image Hub</h2>
-              <p className="text-sm text-purple-100">
-                {TOOLS.filter((t) => t.category.startsWith('img-')).length} tools to transform, enhance and edit your images
+              <h2 className="text-base font-black leading-tight">Digital Image Hub</h2>
+              <p className="text-xs text-purple-100">
+                {TOOLS.filter((t) => t.category.startsWith('img-')).length} tools · transform, enhance &amp; edit images
               </p>
             </div>
           </div>
@@ -211,43 +211,43 @@ function CategorySection({
   tools: ReturnType<typeof TOOLS.filter>;
 }) {
   return (
-    <section id={category.id} className="mb-10 scroll-mt-20">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
+    <section id={category.id} className="mb-5 scroll-mt-20">
+      {/* Compact header */}
+      <div className="flex items-center gap-2 mb-2">
         <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-base shadow"
+          className="w-6 h-6 rounded-md flex items-center justify-center text-white text-xs shadow-sm shrink-0"
           style={{ background: category.color }}
         >
           {category.icon}
         </div>
-        <div className="flex-1">
-          <h3 className="text-base font-bold text-gray-900">{category.label}</h3>
-          <p className="text-xs text-gray-400">{tools.length} tool{tools.length !== 1 ? 's' : ''} available</p>
-        </div>
-        <div className="hidden sm:block flex-1 h-px" style={{ background: 'linear-gradient(90deg,#e5e7eb,transparent)' }} />
+        <h3 className="text-sm font-bold text-gray-800">{category.label}</h3>
+        <span className="text-xs text-gray-400">({tools.length})</span>
+        <div className="flex-1 h-px ml-1" style={{ background: 'linear-gradient(90deg,#e5e7eb,transparent)' }} />
       </div>
 
-      {/* Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+      {/* Dense horizontal cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
         {tools.map((tool) => (
           <Link
             key={tool.slug}
             href={`/tool/${tool.slug}`}
-            className="tool-card group flex flex-col bg-white rounded-2xl p-5 transition-all duration-200 cursor-pointer"
-            style={{ border: `1.5px solid ${tool.borderColor}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+            className="tool-card group flex items-center gap-2 bg-white rounded-xl px-2.5 py-2 hover:shadow-md transition-all duration-150"
+            style={{ border: `1.5px solid ${tool.borderColor}` }}
           >
             <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-xl mb-3 transition-transform duration-200 group-hover:scale-110"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 transition-transform duration-150 group-hover:scale-110"
               style={{ background: tool.bgColor }}
             >
               {tool.icon}
             </div>
-            <h4 className="text-sm font-bold text-gray-900 mb-1 leading-snug">{tool.name}</h4>
-            <p className="text-xs text-gray-400 leading-relaxed line-clamp-2 flex-1">{tool.description}</p>
-            <div className="mt-3 flex items-center gap-1 text-xs font-bold" style={{ color: tool.color }}>
-              Use Tool
-              <span className="transition-transform duration-200 group-hover:translate-x-1 inline-block">→</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-gray-900 leading-tight truncate">{tool.name}</p>
+              <p className="text-[10px] text-gray-400 leading-tight truncate">{tool.description}</p>
             </div>
+            <span
+              className="text-xs opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-150 shrink-0"
+              style={{ color: tool.color }}
+            >→</span>
           </Link>
         ))}
       </div>
