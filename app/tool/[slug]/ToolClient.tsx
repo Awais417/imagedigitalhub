@@ -5,19 +5,21 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Swal from 'sweetalert2';
 import { TOOLS } from '../../lib/tools';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.godoclab.com/api';
+import { useAuth } from '../../context/AuthContext';
+import { apiPostBlob } from '../../lib/api';
 
 export default function ToolClient({ slug }: { slug: string }) {
   const tool = TOOLS.find((t) => t.slug === slug);
+  const { user } = useAuth();
 
-  const [files, setFiles]             = useState<File[]>([]);
-  const [dragging, setDragging]       = useState(false);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState('');
-  const [downloadUrl, setDownloadUrl] = useState('');
+  const [files, setFiles]               = useState<File[]>([]);
+  const [dragging, setDragging]         = useState(false);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState('');
+  const [downloadUrl, setDownloadUrl]   = useState('');
   const [downloadName, setDownloadName] = useState('');
-  const [params, setParams]           = useState<Record<string, string>>(() => {
+  const [saved, setSaved]               = useState(false);
+  const [params, setParams]             = useState<Record<string, string>>(() => {
     if (!tool?.params) return {};
     return Object.fromEntries(
       (tool.params ?? []).map((p) => [p.name, String(p.defaultValue ?? '')])
@@ -63,6 +65,7 @@ export default function ToolClient({ slug }: { slug: string }) {
     setLoading(true);
     setError('');
     setDownloadUrl('');
+    setSaved(false);
 
     try {
       const formData = new FormData();
@@ -75,20 +78,14 @@ export default function ToolClient({ slug }: { slug: string }) {
         if (v !== '') formData.append(k, v);
       });
 
-      const res = await fetch(`${API_BASE}${tool.apiEndpoint}`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Server error ${res.status}`);
-      }
-
-      const blob = await res.blob();
+      /* apiPostBlob attaches Authorization header automatically when logged in */
+      const blob = await apiPostBlob(tool.apiEndpoint, formData);
       const url  = URL.createObjectURL(blob);
       setDownloadUrl(url);
       setDownloadName(tool.outputFormat);
+
+      /* Backend middleware auto-saves to S3 + DB when auth header is present */
+      if (user) setSaved(true);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -100,6 +97,7 @@ export default function ToolClient({ slug }: { slug: string }) {
     setFiles([]);
     setDownloadUrl('');
     setError('');
+    setSaved(false);
     if (inputRef.current) inputRef.current.value = '';
   };
 
@@ -147,13 +145,32 @@ export default function ToolClient({ slug }: { slug: string }) {
               priority
             />
           </Link>
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 text-sm font-semibold transition-all hover:opacity-70"
-            style={{ color: accentColor }}
-          >
-            <span>←</span> All Tools
-          </Link>
+          <div className="flex items-center gap-3">
+            {user ? (
+              <Link
+                href="/dashboard"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:opacity-80"
+                style={{ background: '#eff6ff', color: '#2596be' }}
+              >
+                📂 My Files
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:bg-gray-100"
+                style={{ color: '#64748b', border: '1.5px solid #e5e7eb' }}
+              >
+                Login to save files
+              </Link>
+            )}
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 text-sm font-semibold transition-all hover:opacity-70"
+              style={{ color: accentColor }}
+            >
+              <span>←</span> All Tools
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -175,6 +192,12 @@ export default function ToolClient({ slug }: { slug: string }) {
           </div>
           <h1 className="text-3xl font-extrabold text-gray-900 mb-2">{tool.name}</h1>
           <p className="text-gray-500 text-base max-w-md mx-auto">{tool.description}</p>
+          {!user && (
+            <p className="text-xs text-gray-400 mt-3">
+              <Link href="/login" className="font-semibold hover:underline" style={{ color: '#2596be' }}>Sign in</Link>
+              {' '}to automatically save converted files to your account
+            </p>
+          )}
         </div>
 
         {/* ── Steps indicator ── */}
@@ -215,7 +238,6 @@ export default function ToolClient({ slug }: { slug: string }) {
               boxShadow: dragging ? `0 0 0 4px ${accentColor}22` : '0 1px 6px rgba(0,0,0,0.04)',
             }}
           >
-            {/* Subtle background pattern */}
             <div
               className="absolute inset-0 pointer-events-none opacity-[0.03]"
               style={{ backgroundImage: `repeating-linear-gradient(45deg, ${accentColor} 0, ${accentColor} 1px, transparent 0, transparent 50%)`, backgroundSize: '20px 20px' }}
@@ -287,10 +309,7 @@ export default function ToolClient({ slug }: { slug: string }) {
             style={{ background: '#ffffff', border: '1.5px solid #e5e7eb', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}
           >
             <div className="flex items-center gap-2 mb-5">
-              <div
-                className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
-                style={{ background: accentColor, color: '#fff' }}
-              >
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs" style={{ background: accentColor, color: '#fff' }}>
                 ⚙
               </div>
               <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Options</h3>
@@ -305,31 +324,20 @@ export default function ToolClient({ slug }: { slug: string }) {
                   {param.type === 'select' ? (
                     <select
                       value={params[param.name] ?? ''}
-                      onChange={(e) =>
-                        setParams((prev) => ({ ...prev, [param.name]: e.target.value }))
-                      }
+                      onChange={(e) => setParams((prev) => ({ ...prev, [param.name]: e.target.value }))}
                       className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
-                      style={{
-                        border: '1.5px solid #e5e7eb',
-                        background: '#f9fafb',
-                        color: '#111827',
-                      }}
+                      style={{ border: '1.5px solid #e5e7eb', background: '#f9fafb', color: '#111827' }}
                     >
                       {param.options?.map((o) => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   ) : param.type === 'color' ? (
-                    <div
-                      className="flex items-center gap-3 px-3 py-2 rounded-xl"
-                      style={{ border: '1.5px solid #e5e7eb', background: '#f9fafb' }}
-                    >
+                    <div className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ border: '1.5px solid #e5e7eb', background: '#f9fafb' }}>
                       <input
                         type="color"
                         value={params[param.name] ?? '#000000'}
-                        onChange={(e) =>
-                          setParams((prev) => ({ ...prev, [param.name]: e.target.value }))
-                        }
+                        onChange={(e) => setParams((prev) => ({ ...prev, [param.name]: e.target.value }))}
                         className="w-9 h-9 rounded-lg border-0 cursor-pointer bg-transparent"
                       />
                       <span className="text-sm font-mono text-gray-600">{params[param.name]}</span>
@@ -339,15 +347,9 @@ export default function ToolClient({ slug }: { slug: string }) {
                       type={param.type}
                       value={params[param.name] ?? ''}
                       placeholder={param.placeholder}
-                      onChange={(e) =>
-                        setParams((prev) => ({ ...prev, [param.name]: e.target.value }))
-                      }
+                      onChange={(e) => setParams((prev) => ({ ...prev, [param.name]: e.target.value }))}
                       className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
-                      style={{
-                        border: '1.5px solid #e5e7eb',
-                        background: '#f9fafb',
-                        color: '#111827',
-                      }}
+                      style={{ border: '1.5px solid #e5e7eb', background: '#f9fafb', color: '#111827' }}
                     />
                   )}
                 </div>
@@ -362,11 +364,7 @@ export default function ToolClient({ slug }: { slug: string }) {
             onClick={handleSubmit}
             disabled={loading}
             className="w-full py-4 rounded-2xl text-white font-extrabold text-lg transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden"
-            style={{
-              background: loading
-                ? '#9ca3af'
-                : `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
-            }}
+            style={{ background: loading ? '#9ca3af' : `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}
           >
             {loading ? (
               <span className="flex items-center justify-center gap-3">
@@ -387,10 +385,7 @@ export default function ToolClient({ slug }: { slug: string }) {
 
         {/* ── Error ── */}
         {error && (
-          <div
-            className="mt-4 p-4 rounded-2xl flex items-start gap-3"
-            style={{ background: '#fef2f2', border: '1.5px solid #fecaca' }}
-          >
+          <div className="mt-4 p-4 rounded-2xl flex items-start gap-3" style={{ background: '#fef2f2', border: '1.5px solid #fecaca' }}>
             <span className="text-xl shrink-0">⚠️</span>
             <div>
               <p className="font-bold text-red-700 text-sm">Processing Failed</p>
@@ -403,11 +398,7 @@ export default function ToolClient({ slug }: { slug: string }) {
         {downloadUrl && (
           <div
             className="rounded-3xl p-10 text-center"
-            style={{
-              background: '#ffffff',
-              border: `2px solid ${tool.borderColor}`,
-              boxShadow: `0 8px 40px ${accentColor}22`,
-            }}
+            style={{ background: '#ffffff', border: `2px solid ${tool.borderColor}`, boxShadow: `0 8px 40px ${accentColor}22` }}
           >
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto mb-4 shadow-lg"
@@ -416,16 +407,29 @@ export default function ToolClient({ slug }: { slug: string }) {
               🎉
             </div>
             <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Ready to Download!</h2>
-            <p className="text-gray-400 text-sm mb-7">Your file has been processed successfully.</p>
-            <a
-              href={downloadUrl}
-              download={downloadName}
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-white font-extrabold text-lg transition-all duration-200 shadow-md hover:shadow-xl hover:opacity-90 mb-5"
-              style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}bb)` }}
-            >
-              ⬇️ Download {downloadName}
-            </a>
-            <br />
+            <p className="text-gray-400 text-sm mb-5">Your file has been processed successfully.</p>
+
+            {/* Saved to history badge */}
+            {saved && (
+              <div
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold mb-5"
+                style={{ background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0' }}
+              >
+                ✓ Saved to your account ·{' '}
+                <Link href="/dashboard" className="underline hover:no-underline">View My Files</Link>
+              </div>
+            )}
+
+            <div>
+              <a
+                href={downloadUrl}
+                download={downloadName}
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-white font-extrabold text-lg transition-all duration-200 shadow-md hover:shadow-xl hover:opacity-90 mb-5"
+                style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}bb)` }}
+              >
+                ⬇️ Download {downloadName}
+              </a>
+            </div>
             <button
               onClick={handleReset}
               className="text-sm font-semibold transition-colors hover:opacity-70"
