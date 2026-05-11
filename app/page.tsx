@@ -97,8 +97,8 @@ export default function Home() {
               { value: '100%',           label: 'Free Forever'    },
             ].map((s) => (
               <div key={s.label} className="text-center sm:text-right">
-                <div className="text-2xl font-black" style={{ color: '#38bdf8' }}>{s.value}</div>
-                <div className="text-xs font-medium" style={{ color: '#64748b' }}>{s.label}</div>
+                <div className="text-2xl font-black text-white">{s.value}</div>
+                <div className="text-xs font-medium" style={{ color: '#bfdbfe' }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -190,10 +190,13 @@ export default function Home() {
             className="mt-6 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3"
             style={{ borderTop: '1px solid #1e293b' }}
           >
-            <p className="text-xs" style={{ color: '#475569' }}>
+            <p className="text-xs" style={{ color: '#94a3b8' }}>
               {totalTools} free PDF &amp; Image tools · No sign-up required
             </p>
-            <p className="text-xs" style={{ color: '#334155' }}>Powered by Digital Image Hub</p>
+            <p className="text-xs" style={{ color: '#94a3b8' }}>
+              Powered by Digital Image Hub &amp;{' '}
+              <a href="https://aurexone.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-white" style={{ color: '#2596be' }}>aurexone.com</a>
+            </p>
           </div>
         </div>
       </footer>
