@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { TOOLS, CATEGORIES } from './lib/tools';
 import { SidebarNav } from './components/SidebarNav';
+import { Navbar } from './components/Navbar';
 
 const pdfCategories   = CATEGORIES.filter((c) => !c.id.startsWith('img-'));
 const imageCategories = CATEGORIES.filter((c) =>  c.id.startsWith('img-'));
@@ -15,44 +16,7 @@ export default function Home() {
       {/* ══════════════════════════════════════════════════
           HEADER
       ══════════════════════════════════════════════════ */}
-      <header
-        className="sticky top-0 z-50 border-b"
-        style={{ background: '#ffffff', borderColor: '#e5e7eb', boxShadow: '0 1px 12px 0 rgba(37,150,190,0.08)' }}
-      >
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <Image
-              src="/Website Logo.png"
-              alt="Digital Hub"
-              width={160}
-              height={48}
-              className="h-11 w-auto object-contain"
-              priority
-            />
-          </Link>
-
-          {/* Mobile category pills */}
-          <nav className="flex lg:hidden items-center gap-1">
-            {[
-              { label: 'PDF',   href: '#organize',    color: '#2596be' },
-              { label: 'Image', href: '#img-convert',  color: '#8b5cf6' },
-            ].map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80"
-                style={{ color: item.color, background: item.color + '14' }}
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-
-          <p className="hidden sm:block text-sm font-medium" style={{ color: '#2596be' }}>
-            {totalTools} Free Tools
-          </p>
-        </div>
-      </header>
+      <Navbar totalTools={totalTools} />
 
       {/* ══════════════════════════════════════════════════
           HERO  (compact)
@@ -194,7 +158,7 @@ export default function Home() {
               {totalTools} free PDF &amp; Image tools · No sign-up required
             </p>
             <p className="text-xs" style={{ color: '#94a3b8' }}>
-              Powered by Digital Image Hub &amp;{' '}
+              Powered by {' '}
               <a href="https://aurexone.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-white" style={{ color: '#2596be' }}>aurexone.com</a>
             </p>
           </div>
