@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { TOOLS, CATEGORIES } from './lib/tools';
 import { SidebarNav } from './components/SidebarNav';
 import { Navbar } from './components/Navbar';
+import { ToolIcon } from './components/ToolIcon';
 
 const pdfCategories   = CATEGORIES.filter((c) => !c.id.startsWith('img-'));
 const imageCategories = CATEGORIES.filter((c) =>  c.id.startsWith('img-'));
@@ -201,11 +202,8 @@ function CategorySection({
             className="tool-card group flex items-center gap-2 bg-white rounded-xl px-2.5 py-2 hover:shadow-md transition-all duration-150"
             style={{ border: `1.5px solid ${tool.borderColor}` }}
           >
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 transition-transform duration-150 group-hover:scale-110"
-              style={{ background: tool.bgColor }}
-            >
-              {tool.icon}
+            <div className="shrink-0 transition-transform duration-150 group-hover:scale-110">
+              <ToolIcon slug={tool.slug} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-gray-900 leading-tight truncate">{tool.name}</p>
