@@ -3,7 +3,6 @@ import Image from 'next/image';
 import { TOOLS, CATEGORIES } from './lib/tools';
 import { SidebarNav } from './components/SidebarNav';
 import { Navbar } from './components/Navbar';
-import { ToolIcon, CategoryIcon } from './components/ToolIcon';
 
 const pdfCategories   = CATEGORIES.filter((c) => !c.id.startsWith('img-'));
 const imageCategories = CATEGORIES.filter((c) =>  c.id.startsWith('img-'));
@@ -146,7 +145,7 @@ export default function Home() {
                   className="flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-white"
                   style={{ color: '#64748b' }}
                 >
-                  <CategoryIcon catId={cat.id} size={20} />
+                  <span className="text-sm">{cat.icon}</span>
                   {cat.label}
                 </a>
               ))}
@@ -183,7 +182,7 @@ function CategorySection({
     <section id={category.id} className="mb-5 scroll-mt-20">
       {/* Compact header */}
       <div className="flex items-center gap-2 mb-2">
-        <CategoryIcon catId={category.id} size={24} />
+        <span className="text-base leading-none">{category.icon}</span>
         <h3 className="text-sm font-bold text-gray-800">{category.label}</h3>
         <span className="text-xs text-gray-400">({tools.length})</span>
         <div className="flex-1 h-px ml-1" style={{ background: 'linear-gradient(90deg,#e5e7eb,transparent)' }} />
@@ -199,7 +198,12 @@ function CategorySection({
             style={{ border: `1.5px solid ${tool.borderColor}` }}
           >
             <div className="shrink-0 transition-transform duration-150 group-hover:scale-110">
-              <ToolIcon slug={tool.slug} />
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm"
+                style={{ background: tool.bgColor }}
+              >
+                {tool.icon}
+              </div>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-gray-900 leading-tight truncate">{tool.name}</p>

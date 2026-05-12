@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { CATEGORIES } from '../lib/tools';
-import { CategoryIcon } from './ToolIcon';
 
 const pdfCats = CATEGORIES.filter((c) => !c.id.startsWith('img-'));
 const imgCats = CATEGORIES.filter((c) =>  c.id.startsWith('img-'));
@@ -71,7 +70,7 @@ export function SidebarNav() {
                   borderLeft:   isActive ? `3px solid ${cat.color}` : '3px solid transparent',
                 }}
               >
-                <CategoryIcon catId={cat.id} size={22} />
+                <span className="text-base leading-none">{cat.icon}</span>
                 <span className="truncate">{cat.label}</span>
               </button>
             );
