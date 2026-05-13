@@ -65,6 +65,31 @@ export async function apiGet<T = unknown>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Save a processed file blob to S3 + DB — fire and forget, never throws */
+export async function saveConversion(
+  blob: Blob,
+  toolSlug: string,
+  outputFileName: string,
+  originalFileName: string,
+): Promise<void> {
+  const token = getToken();
+  if (!token) return; // not logged in — skip
+  try {
+    const fd = new FormData();
+    fd.append('file', blob, outputFileName);
+    fd.append('toolSlug', toolSlug);
+    fd.append('outputFileName', outputFileName);
+    fd.append('originalFileName', originalFileName);
+    await fetch(`${API_BASE}/conversions/save`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+  } catch {
+    // never block the user's download
+  }
+}
+
 /** DELETE — returns parsed JSON */
 export async function apiDelete<T = unknown>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

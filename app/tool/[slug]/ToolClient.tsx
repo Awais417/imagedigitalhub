@@ -6,7 +6,7 @@ import Image from 'next/image';
 import Swal from 'sweetalert2';
 import { TOOLS } from '../../lib/tools';
 import { useAuth } from '../../context/AuthContext';
-import { apiPostBlob } from '../../lib/api';
+import { apiPostBlob, saveConversion } from '../../lib/api';
 
 export default function ToolClient({ slug }: { slug: string }) {
   const tool = TOOLS.find((t) => t.slug === slug);
@@ -78,14 +78,18 @@ export default function ToolClient({ slug }: { slug: string }) {
         if (v !== '') formData.append(k, v);
       });
 
-      /* apiPostBlob attaches Authorization header automatically when logged in */
       const blob = await apiPostBlob(tool.apiEndpoint, formData);
       const url  = URL.createObjectURL(blob);
       setDownloadUrl(url);
       setDownloadName(tool.outputFormat);
 
-      /* Backend middleware auto-saves to S3 + DB when auth header is present */
-      if (user) setSaved(true);
+      /* Explicitly save to S3 + DB when logged in */
+      if (user) {
+        const originalFileName = files[0]?.name ?? '';
+        const outputFileName   = `${tool.slug}.${tool.outputFormat}`;
+        saveConversion(blob, tool.slug, outputFileName, originalFileName);
+        setSaved(true);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {

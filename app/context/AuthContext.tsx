@@ -12,14 +12,15 @@ export interface AuthUser {
   id: number;
   email: string;
   username: string;
+  role: string; // 'user' | 'admin'
 }
 
 interface AuthCtx {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
-  login: (emailOrUsername: string, password: string) => Promise<void>;
-  signup: (email: string, username: string, password: string) => Promise<void>;
+  login: (emailOrUsername: string, password: string) => Promise<AuthUser>;
+  signup: (email: string, username: string, password: string) => Promise<AuthUser>;
   logout: () => void;
 }
 
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const data = await res.json() as { access_token: string; user: AuthUser };
       persist(data.user, data.access_token);
+      return data.user;
     },
     [persist],
   );
@@ -82,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const data = await res.json() as { access_token: string; user: AuthUser };
       persist(data.user, data.access_token);
+      return data.user;
     },
     [persist],
   );

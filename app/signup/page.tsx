@@ -29,8 +29,8 @@ export default function SignupPage() {
     setLoading(true);
     setError('');
     try {
-      await signup(email, username, password);
-      router.push('/dashboard');
+      const u = await signup(email, username, password);
+      router.push(u.role === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
       setError((err as Error).message);
     } finally {

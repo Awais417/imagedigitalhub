@@ -29,7 +29,7 @@ export default function GoogleCallbackPage() {
       // Dispatch storage event so AuthContext in other tabs updates
       window.dispatchEvent(new Event('storage'));
 
-      router.replace('/dashboard');
+      router.replace(user.role === 'admin' ? '/admin' : '/dashboard');
     } catch {
       setError('Google sign-in failed. Please try again.');
     }
