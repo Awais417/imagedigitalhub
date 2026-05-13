@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { TOOLS, CATEGORIES } from './lib/tools';
 import { SidebarNav } from './components/SidebarNav';
+import { SidebarBtn } from './components/SidebarBtn';
 import { Navbar } from './components/Navbar';
 
 const pdfCategories   = CATEGORIES.filter((c) => !c.id.startsWith('img-'));
@@ -70,12 +71,14 @@ export default function Home() {
       </section>
 
       {/* ══════════════════════════════════════════════════
-          TWO-COLUMN LAYOUT: SIDEBAR + CONTENT
+          SIDEBAR DRAWER TRIGGER (fixed left edge, all screens)
       ══════════════════════════════════════════════════ */}
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 flex gap-6 items-start">
+      <SidebarNav />
 
-        {/* ── LEFT SIDEBAR ─────────────────────────────── */}
-        <SidebarNav />
+      {/* ══════════════════════════════════════════════════
+          MAIN CONTENT
+      ══════════════════════════════════════════════════ */}
+      <div className="max-w-350 mx-auto px-4 sm:px-6 py-6">
 
         {/* ── MAIN CONTENT ─────────────────────────────── */}
         <main className="flex-1 min-w-0">
@@ -86,6 +89,7 @@ export default function Home() {
             className="flex items-center gap-3 rounded-xl px-4 py-3 mb-4"
             style={{ background: 'linear-gradient(90deg,#1d4ed8,#2596be)', color: '#fff' }}
           >
+            <SidebarBtn />
             <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-xl shrink-0">📄</div>
             <div>
               <h2 className="text-base font-black leading-tight">PDF Document Tools</h2>
