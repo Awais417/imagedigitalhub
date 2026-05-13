@@ -2,7 +2,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { TOOLS, CATEGORIES } from './lib/tools';
 import { SidebarNav } from './components/SidebarNav';
-import { SidebarBtn } from './components/SidebarBtn';
 import { Navbar } from './components/Navbar';
 
 const pdfCategories   = CATEGORIES.filter((c) => !c.id.startsWith('img-'));
@@ -89,7 +88,6 @@ export default function Home() {
             className="flex items-center gap-3 rounded-xl px-4 py-3 mb-4"
             style={{ background: 'linear-gradient(90deg,#1d4ed8,#2596be)', color: '#fff' }}
           >
-            <SidebarBtn />
             <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-xl shrink-0">📄</div>
             <div>
               <h2 className="text-base font-black leading-tight">PDF Document Tools</h2>

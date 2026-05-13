@@ -66,6 +66,17 @@ export function Navbar({ totalTools }: { totalTools: number }) {
     >
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
 
+        {/* Sidebar drawer trigger — left of logo */}
+        <button
+          aria-label="Browse categories"
+          onClick={() => window.dispatchEvent(new Event('open-sidebar'))}
+          className="flex flex-col justify-center items-center w-9 h-9 rounded-lg gap-1.5 hover:bg-gray-100 transition-colors shrink-0"
+        >
+          <span className="w-5 h-0.5 rounded-full bg-gray-700 block" />
+          <span className="w-3.5 h-0.5 rounded-full bg-gray-500 block" />
+          <span className="w-5 h-0.5 rounded-full bg-gray-700 block" />
+        </button>
+
         {/* Logo */}
         <Link href="/" className="shrink-0">
           <Image
