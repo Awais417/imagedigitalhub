@@ -1992,4 +1992,34 @@ export const TOOLS: Tool[] = [
       },
     ],
   },
+  // ─── Watermark Removal ────────────────────────────────────────────────────
+  {
+    slug: 'remove-watermark',
+    name: 'Remove Watermark',
+    description: 'Remove semi-transparent watermarks and overlay text from images',
+    icon: '🧹',
+    color: '#6366f1',
+    bgColor: '#eef2ff',
+    borderColor: '#c7d2fe',
+    category: 'img-edit',
+    apiEndpoint: '/image/remove-watermark',
+    multipleFiles: false,
+    inputLabel: 'Select image to clean',
+    acceptedFormats: '.jpg,.jpeg,.png,.webp',
+    outputFormat: 'cleaned.jpg',
+    outputMime: 'image/jpeg',
+    params: [
+      {
+        name: 'strength',
+        label: 'Removal Strength',
+        type: 'select',
+        options: [
+          { value: '30', label: 'Light (30%) — subtle overlays' },
+          { value: '60', label: 'Medium (60%) — standard watermarks' },
+          { value: '85', label: 'Strong (85%) — heavy watermarks' },
+        ],
+        defaultValue: '60',
+      },
+    ],
+  },
 ];
