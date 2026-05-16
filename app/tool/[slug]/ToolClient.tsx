@@ -141,7 +141,7 @@ export default function ToolClient({ slug }: { slug: string }) {
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <Image
-              src="/Website Logo.png"
+              src="/logo.webp"
               alt="Digital Hub"
               width={140}
               height={40}

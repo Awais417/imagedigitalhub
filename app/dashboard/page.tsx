@@ -96,7 +96,7 @@ export default function DashboardPage() {
       >
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <Link href="/">
-            <Image src="/Website Logo.png" alt="Digital Hub" width={130} height={40}
+            <Image src="/logo.webp" alt="Digital Hub" width={130} height={40}
               className="h-9 w-auto object-contain" priority />
           </Link>
           <div className="flex items-center gap-3">

@@ -133,7 +133,7 @@ export default function Home() {
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <Image
-              src="/Website Logo.png"
+              src="/logo.webp"
               alt="Digital Hub"
               width={140}
               height={42}

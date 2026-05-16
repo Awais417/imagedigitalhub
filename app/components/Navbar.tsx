@@ -48,7 +48,7 @@ export function Navbar({ totalTools }: { totalTools: number }) {
         {/* Logo */}
         <Link href="/" className="shrink-0">
           <Image
-            src="/Website Logo.png"
+            src="/logo.webp"
             alt="Digital Hub"
             width={140}
             height={44}

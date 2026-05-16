@@ -46,7 +46,7 @@ export default function SignupPage() {
       {/* Header */}
       <header className="flex justify-between items-center px-6 py-4">
         <Link href="/">
-          <Image src="/Website Logo.png" alt="Digital Hub" width={130} height={40}
+          <Image src="/logo.webp" alt="Digital Hub" width={130} height={40}
             className="h-9 w-auto object-contain brightness-0 invert" />
         </Link>
         <span className="text-sm text-slate-400">
