@@ -24,6 +24,9 @@ export interface Tool {
   outputFormat: string;
   outputMime: string;
   params?: ToolParam[];
+  /** SEO overrides — if omitted the tool name/description are used as fallbacks */
+  seoTitle?: string;
+  seoDescription?: string;
 }
 
 export const CATEGORIES = [
@@ -61,6 +64,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'merged.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free PDF Merge Tool | Combine PDFs Online',
+    seoDescription: 'Use our free merge tool to combine multiple PDFs into one file instantly. Fast, easy, and 100% online — no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'split',
