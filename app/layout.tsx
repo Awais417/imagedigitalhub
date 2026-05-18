@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GoDocLab — Every PDF Tool You Need",
   description: "Merge, split, compress, convert, rotate, watermark, protect PDFs and more. All tools in one place at GoDocLab.com.",
+  verification: {
+    google: '5SzuqjZ6yShvfqh_XZYyMdHhJN4dJRdFhm8TzCtBxZA',
+  },
 };
 
 export default function RootLayout({
