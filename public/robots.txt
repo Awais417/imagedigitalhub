@@ -1,0 +1,31 @@
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: Yahoo! Slurp
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: AhrefsBot
+User-agent: AhrefsSiteAudit
+Allow: /
+
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: PerplexityBot
+User-agent: Google-Extended
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Baiduspider
+User-agent: SemrushBot
+User-agent: MJ12bot
+User-agent: DotBot
+User-agent: PetalBot
+Disallow: /
+
+User-agent: *
+Disallow: /wp-admin/
+Disallow: /login/
+Disallow: /signup/
+Allow: /
+
+Sitemap: https://godoclab.com/sitemap.xml
