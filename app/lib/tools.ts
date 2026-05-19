@@ -97,6 +97,8 @@ export const TOOLS: Tool[] = [
       { name: 'ranges', label: 'Page Ranges (e.g. 1-3, 5)', type: 'text', defaultValue: '1-999', placeholder: '1-3, 5' },
       { name: 'fixed_range', label: 'Pages per split', type: 'number', defaultValue: 1 },
     ],
+    seoTitle: 'Free PDF Split Tool | Split PDFs Online',
+    seoDescription: 'Use our free PDF split tool to split PDF files into pages instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'selective-merge',
@@ -774,6 +776,8 @@ export const TOOLS: Tool[] = [
       { name: 'rotation', label: 'Rotation (degrees, 0–360)', type: 'number', defaultValue: 315 },
       { name: 'font_color', label: 'Color', type: 'color', defaultValue: '#FF0000' },
     ],
+    seoTitle: 'Free Watermark Tool | Add Logo Online',
+    seoDescription: 'Use our free watermark tool to add text or logo to images instantly online. Fast, easy, and 100% free—no installation required. Try GoDocLab! today',
   },
   {
     slug: 'page-numbers',
@@ -899,6 +903,8 @@ export const TOOLS: Tool[] = [
       { name: 'x', label: 'X Position (px)', type: 'number', defaultValue: 100 },
       { name: 'y', label: 'Y Position (px)', type: 'number', defaultValue: 100 },
     ],
+    seoTitle: 'Free Sticky Note Tool | Add Notes Online',
+    seoDescription: 'Use our free sticky note tool to create and manage notes instantly online. Fast, easy, and 100% web-based - no installation needed. Try GoDocLab!',
   },
   {
     slug: 'highlight',
@@ -1648,6 +1654,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'png',
       },
     ],
+    seoTitle: 'Free Image Format Converter | Convert Online',
+    seoDescription: 'Use our free image format converter to change JPG, PNG, WebP instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
 
   // ─── Sizing & Dimensions ───────────────────────────────────────────────────
@@ -1735,6 +1743,8 @@ export const TOOLS: Tool[] = [
       { name: 'width',  label: 'Crop Width (px)',   type: 'number', defaultValue: 800 },
       { name: 'height', label: 'Crop Height (px)',  type: 'number', defaultValue: 600 },
     ],
+    seoTitle: 'Free Image Crop Tool | Crop Images Online',
+    seoDescription: 'Use our image crop tool to crop images instantly online. Fast, easy, and free browser-based solution for resizing and editing photos. Try it now',
   },
 
   // ─── Image Enhancements ────────────────────────────────────────────────────
@@ -1934,6 +1944,8 @@ export const TOOLS: Tool[] = [
       { name: 'color',     label: 'Text Color',      type: 'color',  defaultValue: '#ffffff' },
       { name: 'rotation',  label: 'Rotation (°)',    type: 'number', defaultValue: 0 },
     ],
+    seoTitle: 'Free Image Watermark Tool | Add Logo Online Fast',
+    seoDescription: 'Use image add watermark tool to add text or logo watermarks online in seconds. Fast, easy, free and fully online — no installation needed at all.',
   },
   {
     slug: 'meme-generator',
@@ -1996,6 +2008,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'none',
       },
     ],
+    seoTitle: 'Free Photo Editor | Edit Images Online',
+    seoDescription: 'Use our free photo editor to edit images instantly online. Fast, easy, and 100% web-based—no installation needed. Try GoDocLab now for free!',
   },
   // ─── Watermark Removal ────────────────────────────────────────────────────
   {
