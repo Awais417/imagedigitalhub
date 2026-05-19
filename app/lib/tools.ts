@@ -139,6 +139,8 @@ export const TOOLS: Tool[] = [
     params: [
       { name: 'max_size_mb', label: 'Max Size per File (MB)', type: 'number', defaultValue: 5 },
     ],
+    seoTitle: 'Free PDF Split by Size Tool | Split PDFs Online',
+    seoDescription: 'Use our free split by size tool to divide large PDFs into smaller files instantly. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'split-by-bookmark',
@@ -168,6 +170,8 @@ export const TOOLS: Tool[] = [
         defaultValue: '1',
       },
     ],
+    seoTitle: 'Free Split PDF by Bookmark Tool | Split Online',
+    seoDescription: 'Use our free split PDF by bookmark tool to divide PDFs instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'delete-pages',
@@ -277,6 +281,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'reversed.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free Reverse PDF Pages Tool | Change Page Order Online',
+    seoDescription: 'Use our free reverse pages tool to instantly change the order of PDF pages online. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'organize-pdf',
@@ -401,6 +407,8 @@ export const TOOLS: Tool[] = [
         defaultValue: '90',
       },
     ],
+    seoTitle: 'Free Image Rotate Tool | Rotate Images Online',
+    seoDescription: 'Use our free image rotate tool to rotate images instantly in any direction. Fast, easy, and 100% online — no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'repair',
@@ -971,6 +979,8 @@ export const TOOLS: Tool[] = [
       { name: 'height', label: 'Height (px)', type: 'number', defaultValue: 20 },
       { name: 'color', label: 'Highlight Color', type: 'color', defaultValue: '#FFFF00' },
     ],
+    seoTitle: 'Free Highlight PDF Tool | Highlight Text Online',
+    seoDescription: 'Use our free highlight tool to highlight text in PDFs instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'underline',
@@ -1251,6 +1261,8 @@ export const TOOLS: Tool[] = [
       { name: 'height', label: 'Height (px)', type: 'number', defaultValue: 20 },
       { name: 'color', label: 'Redaction Color', type: 'color', defaultValue: '#000000' },
     ],
+    seoTitle: 'Free PDF Redact Tool | Hide Sensitive Data Online',
+    seoDescription: 'Use our free PDF redact tool to hide or remove sensitive text instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'stamp',
@@ -1355,6 +1367,8 @@ export const TOOLS: Tool[] = [
         placeholder: '[{"type":"text","name":"full_name","label":"Full Name","page":1,"x":100,"y":700,"width":200,"height":24},{"type":"checkbox","name":"agree","label":"I Agree","page":1,"x":100,"y":660}]',
       },
     ],
+    seoTitle: 'Free Online Form Builder | Create Forms Easily',
+    seoDescription: 'Use our free form builder to create online forms instantly. Fast, easy, and 100% online — no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'fill-form',
@@ -1470,6 +1484,8 @@ export const TOOLS: Tool[] = [
       { name: 'field_name',     label: 'Field name',         type: 'text', placeholder: 'full_name' },
       { name: 'new_field_name', label: 'New name (rename)',  type: 'text', placeholder: 'full_name_updated' },
     ],
+    seoTitle: 'Free Form Field Management Tool | Edit Forms Online',
+    seoDescription: 'Use our free form field management tool to edit and manage form fields instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
 
   // ─── Technical Standards ───────────────────────────────────────────────────
@@ -1622,6 +1638,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'jpg',
       },
     ],
+    seoTitle: 'Free JPG to JPEG Update Tool | Convert Images Online',
+    seoDescription: 'Use our free JPG to JPEG update tool to convert images instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'jpg-to-png',
@@ -1874,6 +1892,8 @@ export const TOOLS: Tool[] = [
     params: [
       { name: 'strength', label: 'Sharpening Strength (1–10)', type: 'number', defaultValue: 5 },
     ],
+    seoTitle: 'Free Image Unblur Tool | Sharpen Blurry Images Online',
+    seoDescription: 'Use our free image unblur tool to sharpen and restore blurry images instantly. Fast, easy, and 100% online — no installation needed. Try GoDocLab now!',
   },
 
   // ─── Visual Effects ────────────────────────────────────────────────────────
