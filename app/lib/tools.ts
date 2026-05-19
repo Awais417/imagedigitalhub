@@ -187,6 +187,8 @@ export const TOOLS: Tool[] = [
     params: [
       { name: 'pages', label: 'Pages to Delete (e.g. 2, 4-6)', type: 'text', defaultValue: '', placeholder: '2, 4-6' },
     ],
+    seoTitle: 'Free Delete PDF Pages Tool | Remove Pages Online',
+    seoDescription: 'Use our free delete pages tool to remove pages from PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'rotate-pages',
@@ -257,6 +259,8 @@ export const TOOLS: Tool[] = [
     params: [
       { name: 'pages', label: 'Pages to Extract (e.g. 1-3, 5)', type: 'text', defaultValue: '', placeholder: '1-3, 5' },
     ],
+    seoTitle: 'Free Extract PDF Pages Tool | Split Pages Online',
+    seoDescription: 'Use our free extract pages tool to extract PDF pages instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'reverse-pages',
@@ -534,6 +538,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.epub',
     outputFormat: 'converted.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free EPUB to PDF Tool | Convert EPUB Online',
+    seoDescription: 'Use our free EPUB to PDF tool to convert EPUB files into PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'cad-to-pdf',
@@ -550,6 +556,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.dwg,.dxf',
     outputFormat: 'converted.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free CAD to PDF Tool | Convert CAD Online',
+    seoDescription: 'Use our free CAD to PDF tool to convert CAD files into PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   // ─── Convert FROM PDF ──────────────────────────────────────────────────────
   {
@@ -740,6 +748,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'converted.xlsx',
     outputMime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    seoTitle: 'Free PDF to Excel Tool | Convert PDF Online',
+    seoDescription: 'Use our free PDF to Excel tool to convert PDF files into Excel instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   {
     slug: 'pdf-to-pptx',
@@ -1527,6 +1537,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'PDF/X-1a',
       },
     ],
+    seoTitle: 'Free PDF to PDF/X Tool | Convert PDF Online',
+    seoDescription: 'Use our free PDF to PDF/X tool to convert PDF files instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'pdf-to-pdfe',
@@ -1626,6 +1638,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.jpg,.jpeg',
     outputFormat: 'converted.png',
     outputMime: 'image/png',
+    seoTitle: 'Free JPG to PNG Tool | Convert Images Online',
+    seoDescription: 'Use our free JPG to PNG tool to convert images instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'png-to-jpg',
@@ -1748,6 +1762,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'jpg',
       },
     ],
+    seoTitle: 'Free Image Compress Tool | Compress Images Online',
+    seoDescription: 'Use our free image compress tool to reduce image size instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'image-resize',
@@ -1890,6 +1906,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'gaussian',
       },
     ],
+    seoTitle: 'Free Image Blur Tool | Blur Images Online',
+    seoDescription: 'Use our free image blur tool to blur images instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'image-rotate',
@@ -2037,6 +2055,8 @@ export const TOOLS: Tool[] = [
       { name: 'text_color',  label: 'Text Color',          type: 'color',  defaultValue: '#ffffff'                                     },
       { name: 'stroke_color',label: 'Outline/Stroke Color',type: 'color',  defaultValue: '#000000'                                     },
     ],
+    seoTitle: 'Free Meme Generator Tool | Create Memes Online',
+    seoDescription: 'Use our free meme generator tool to create memes instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'photo-editor',
