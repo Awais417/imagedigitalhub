@@ -366,6 +366,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'recommended',
       },
     ],
+    seoTitle: 'Free PDF Compress Tool | Reduce PDF Size Online',
+    seoDescription: 'Use our free PDF compress tool to reduce file size instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'rotate',
@@ -428,6 +430,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.doc,.docx',
     outputFormat: 'converted.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free Word to PDF Tool | Convert DOC to PDF Online',
+    seoDescription: 'Use our free Word to PDF tool to convert DOC files into PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'excel-to-pdf',
@@ -494,6 +498,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.html,.htm',
     outputFormat: 'converted.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free HTML to PDF Tool | Convert Web Pages Online',
+    seoDescription: 'Use our free HTML to PDF tool to convert web pages into PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'rtf-to-pdf',
@@ -612,6 +618,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'pages',
       },
     ],
+    seoTitle: 'Free PDF Extract Tool | Extract Pages Online',
+    seoDescription: 'Use our free PDF extract tool to extract pages from PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'pdf-to-text',
@@ -698,6 +706,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'converted.xml',
     outputMime: 'application/xml',
+    seoTitle: 'Free PDF to XML Tool | Convert PDF Online',
+    seoDescription: 'Use our free PDF to XML tool to convert PDF files into XML instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'pdf-to-word',
@@ -872,6 +882,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'eng',
       },
     ],
+    seoTitle: 'Free OCR Tool | Extract Text from Image Online',
+    seoDescription: 'Use our free OCR tool to extract text from images and scanned PDFs instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   // ─── Content Editing — Annotate & Comment ────────────────────────────────
   {
@@ -997,6 +1009,8 @@ export const TOOLS: Tool[] = [
       { name: 'width', label: 'Width (px)', type: 'number', defaultValue: 200 },
       { name: 'height', label: 'Height (px)', type: 'number', defaultValue: 20 },
     ],
+    seoTitle: 'Free PDF Strikeout Tool | Add Strikethrough Online',
+    seoDescription: 'Use our free PDF strikeout tool to add strikethrough text instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   // ─── Watermarks & Numbering (additional) ─────────────────────────────────
   // {
@@ -1264,6 +1278,8 @@ export const TOOLS: Tool[] = [
       { name: 'opacity',   label: 'Opacity (0–100)',                   type: 'number', defaultValue: 40 },
       { name: 'rotation',  label: 'Rotation (degrees)',                type: 'number', defaultValue: 330 },
     ],
+    seoTitle: 'Free PDF Stamp Tool | Add Stamp Online',
+    seoDescription: 'Use our free PDF stamp tool to add stamps to PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'digital-id',
@@ -1302,6 +1318,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'validation.json',
     outputMime: 'application/json',
+    seoTitle: 'Free Validate Signature Tool | Check PDF Signatures',
+    seoDescription: 'Use our free signature validation tool to verify PDF signatures instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   // ─── Interactive Forms ─────────────────────────────────────────────────────
   {
@@ -1391,6 +1409,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'json',
       },
     ],
+    seoTitle: 'Free Export Form Data Tool | Extract Form Data Online',
+    seoDescription: 'Use our free export form data tool to extract and download form data instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'validate-form',
@@ -1407,6 +1427,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'validation.json',
     outputMime: 'application/json',
+    seoTitle: 'Free Form Validator Tool | Validate Forms Online',
+    seoDescription: 'Use our free form validation tool to check and validate forms instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   {
     slug: 'form-field-management',
@@ -1474,6 +1496,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'validation.json',
     outputMime: 'application/json',
+    seoTitle: 'Free PDF/A Validator Tool | Check PDF/A Online',
+    seoDescription: 'Use our free PDF/A validator tool to check PDF/A compliance instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'pdf-to-pdfx',
@@ -1519,6 +1543,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'converted_pdfe.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free PDF to PDF/E Tool | Convert PDF Online',
+    seoDescription: 'Use our free PDF to PDF/E tool to convert PDF files instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'pdf-to-pdfua',
@@ -2082,5 +2108,7 @@ export const TOOLS: Tool[] = [
         defaultValue: '60',
       },
     ],
+    seoTitle: 'Free Remove Watermark Tool | Delete Watermarks Online',
+    seoDescription: 'Use our free remove watermark tool to delete watermarks from images instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
 ];
