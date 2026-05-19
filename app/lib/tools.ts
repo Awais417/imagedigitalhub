@@ -304,6 +304,8 @@ export const TOOLS: Tool[] = [
     params: [
       { name: 'pages', label: 'Page Order (e.g. 3,1,2 or 1-3,5)', type: 'text', defaultValue: '', placeholder: '3,1,2 or 1-3,5' },
     ],
+    seoTitle: 'Free PDF Organizer Tool | Organize PDFs Online',
+    seoDescription: 'Free PDF Organizer Tool lets you organize PDFs easily. Free PDF Organizer Tool helps you rearrange, merge, sort and organize pages online instantly.',
   },
   {
     slug: 'translate-pdf',
@@ -464,6 +466,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.xls,.xlsx',
     outputFormat: 'converted.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free Excel to PDF Tool | Convert Excel to PDF Online',
+    seoDescription: 'Free Excel to PDF Tool lets you convert Excel files to PDF instantly. Use Free Excel to PDF Tool to convert XLS/XLSX files online quickly and easily.',
   },
   {
     slug: 'ppt-to-pdf',
@@ -480,6 +484,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.ppt,.pptx',
     outputFormat: 'converted.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free PPT to PDF Tool | Convert PowerPoint Online',
+    seoDescription: 'Use our free PPT to PDF tool to convert PowerPoint files to PDF instantly. Fast, easy, and 100% online — no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'image-to-pdf',
@@ -1177,6 +1183,8 @@ export const TOOLS: Tool[] = [
     params: [
       { name: 'password', label: 'Password', type: 'password', placeholder: 'Enter password', defaultValue: '' },
     ],
+    seoTitle: 'Free PDF Protect Tool | Secure PDFs Online',
+    seoDescription: 'Use our free PDF Protect tool to secure your PDF files with password protection instantly. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'unlock',
@@ -1696,6 +1704,8 @@ export const TOOLS: Tool[] = [
       { name: 'background_color', label: 'Background Color (replaces transparency)', type: 'color', defaultValue: '#ffffff' },
       { name: 'quality', label: 'JPEG Quality (1–100)', type: 'number', defaultValue: 90 },
     ],
+    seoTitle: 'Free PNG to JPG Tool | Convert Images Online',
+    seoDescription: 'Use our free PNG to JPG tool to convert PNG images to JPG instantly. Fast, easy, and 100% online — no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'html-to-image',
