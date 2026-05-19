@@ -217,6 +217,8 @@ export const TOOLS: Tool[] = [
         defaultValue: '90',
       },
     ],
+    seoTitle: 'Free Rotate PDF Pages Tool | Rotate Pages Online',
+    seoDescription: 'Use our free rotate pages tool to rotate PDF pages instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'reorder-pages',
@@ -332,6 +334,8 @@ export const TOOLS: Tool[] = [
         ],
       },
     ],
+    seoTitle: 'Free Translate PDF Tool | Translate PDF Online',
+    seoDescription: 'Use our free translate PDF tool to translate PDF files instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   // ─── Document Optimization ────────────────────────────────────────────────
   {
@@ -660,6 +664,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'converted.html',
     outputMime: 'text/html',
+    seoTitle: 'Free PDF to HTML Tool | Convert PDF Online',
+    seoDescription: 'Use our free PDF to HTML tool to convert PDF files into HTML instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   {
     slug: 'pdf-to-csv',
@@ -893,6 +899,8 @@ export const TOOLS: Tool[] = [
       { name: 'opacity', label: 'Opacity (0–100)', type: 'number', defaultValue: 100 },
       { name: 'rotation', label: 'Rotation (degrees)', type: 'number', defaultValue: 0 },
     ],
+    seoTitle: 'Free Add Text Box Tool | Insert Text Online',
+    seoDescription: 'Use our free add text box tool to insert text into images or PDFs instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   {
     slug: 'sticky-note',
@@ -1140,6 +1148,8 @@ export const TOOLS: Tool[] = [
     params: [
       { name: 'password', label: 'Current Password', type: 'password', placeholder: 'Enter current password', defaultValue: '' },
     ],
+    seoTitle: 'Free PDF Unlock Tool | Remove PDF Password Online',
+    seoDescription: 'Use our free PDF unlock tool to remove password from PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'set-permissions',
@@ -1446,6 +1456,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'converted_pdfa.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free PDF to PDF/A Tool | Convert PDF Online',
+    seoDescription: 'Use our free PDF to PDF/A tool to convert PDF files into PDF/A format instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   {
     slug: 'validate-pdfa',
@@ -1640,6 +1652,8 @@ export const TOOLS: Tool[] = [
       { name: 'width',  label: 'Viewport Width (px)',  type: 'number', defaultValue: 1280 },
       { name: 'height', label: 'Viewport Height (px)', type: 'number', defaultValue: 720  },
     ],
+    seoTitle: 'Free HTML to Image Tool | Convert HTML Online',
+    seoDescription: 'Use our free HTML to image tool to convert HTML into images instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'image-format-converter',
@@ -1797,6 +1811,8 @@ export const TOOLS: Tool[] = [
         defaultValue: '2',
       },
     ],
+    seoTitle: 'Free AI Upscale Tool | Enhance Images Online',
+    seoDescription: 'Use our free AI upscale tool to enhance and upscale images instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'image-unblur',
@@ -1880,6 +1896,8 @@ export const TOOLS: Tool[] = [
       { name: 'custom_angle', label: 'Custom Angle (0–360°)', type: 'number', defaultValue: 45 },
       { name: 'background',   label: 'Background Fill Color',  type: 'color',  defaultValue: '#ffffff' },
     ],
+    seoTitle: 'Free Image Rotate Tool | Rotate Images Online',
+    seoDescription: 'Use our free image rotate tool to rotate images instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'image-tilt-flip',
