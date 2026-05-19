@@ -118,6 +118,8 @@ export const TOOLS: Tool[] = [
     params: [
       { name: 'page_ranges', label: 'Page Ranges per File (e.g. 1-3, 5)', type: 'text', defaultValue: '', placeholder: '1-3, 5' },
     ],
+    seoTitle: 'Free Selective PDF Merge Tool | Merge Pages Online',
+    seoDescription: 'Use our free selective merge tool to combine selected PDF pages instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   {
     slug: 'split-by-size',
@@ -470,6 +472,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.jpg,.jpeg,.png,.tiff,.bmp,.gif',
     outputFormat: 'converted.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free Image to PDF Tool | Convert Images Online',
+    seoDescription: 'Use our free image to PDF tool to convert JPG, PNG images into PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   {
     slug: 'html-to-pdf',
@@ -502,6 +506,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.rtf',
     outputFormat: 'converted.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free RTF to PDF Tool | Convert RTF Online',
+    seoDescription: 'Use our free RTF to PDF tool to convert RTF files into PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'epub-to-pdf',
@@ -618,6 +624,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'converted.txt',
     outputMime: 'text/plain',
+    seoTitle: 'Free PDF to Text Tool | Extract Text Online',
+    seoDescription: 'Use our free PDF to text tool to extract text from PDF files instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   {
     slug: 'pdf-to-epub',
@@ -634,6 +642,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'converted.epub',
     outputMime: 'application/epub+zip',
+    seoTitle: 'Free PDF to EPUB Tool | Convert PDF Online',
+    seoDescription: 'Use our free PDF to EPUB tool to convert PDF files into EPUB format instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
   },
   {
     slug: 'pdf-to-html',
@@ -820,6 +830,8 @@ export const TOOLS: Tool[] = [
       { name: 'font_size', label: 'Font Size', type: 'number', defaultValue: 12 },
       { name: 'font_color', label: 'Color', type: 'color', defaultValue: '#000000' },
     ],
+    seoTitle: 'Free Page Numbers Tool | Add Page Numbers Online',
+    seoDescription: 'Use our free page numbers tool to add page numbers to PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'ocr',
@@ -952,6 +964,8 @@ export const TOOLS: Tool[] = [
       { name: 'width', label: 'Width (px)', type: 'number', defaultValue: 200 },
       { name: 'height', label: 'Height (px)', type: 'number', defaultValue: 20 },
     ],
+    seoTitle: 'Free Text Underline Tool | Underline Text Online',
+    seoDescription: 'Use our free underline tool to underline text instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'strikeout',
@@ -1085,6 +1099,8 @@ export const TOOLS: Tool[] = [
       { name: 'font_color', label: 'Text Color', type: 'color', defaultValue: '#000000' },
       { name: 'cover_color', label: 'Cover Background Color', type: 'color', defaultValue: '#ffffff' },
     ],
+    seoTitle: 'Free Edit Text Tool | Edit Text Online',
+    seoDescription: 'Use our free edit text tool to edit text instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   // ─── Security & Sign ───────────────────────────────────────────────────────
   {
@@ -1175,6 +1191,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'false',
       },
     ],
+    seoTitle: 'Free Set Permissions Tool | Manage File Access Online',
+    seoDescription: 'Use our free set permissions tool to manage file access instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'redact',
@@ -1333,6 +1351,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'false',
       },
     ],
+    seoTitle: 'Free Fill Form Tool | Fill Forms Online',
+    seoDescription: 'Use our free fill form tool to complete online forms instantly. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'export-form-data',
@@ -1721,6 +1741,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'cover',
       },
     ],
+    seoTitle: 'Free Image Resize Tool | Resize Images Online',
+    seoDescription: 'Use our free image resize tool to resize images instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
   {
     slug: 'image-crop',
@@ -1890,6 +1912,8 @@ export const TOOLS: Tool[] = [
       { name: 'tilt',       label: 'Tilt Angle (-45° to 45°)', type: 'number', defaultValue: 0 },
       { name: 'background', label: 'Background Fill Color',     type: 'color',  defaultValue: '#ffffff' },
     ],
+    seoTitle: 'Free Image Tilt Flip Tool | Rotate Images Online',
+    seoDescription: 'Use our free image tilt flip tool to rotate and flip images instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
 
   // ─── Image Content Editing ─────────────────────────────────────────────────
