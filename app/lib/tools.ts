@@ -244,6 +244,8 @@ export const TOOLS: Tool[] = [
     params: [
       { name: 'order', label: 'New Page Order (e.g. 3, 1, 2, 4)', type: 'text', defaultValue: '', placeholder: '3, 1, 2, 4' },
     ],
+    seoTitle: 'Free PDF Reorder Pages Tool | Rearrange PDF Pages Online',
+    seoDescription: 'Use our free reorder pages tool to rearrange PDF pages instantly online. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'extract-pages',
@@ -425,6 +427,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'repaired.pdf',
     outputMime: 'application/pdf',
+    seoTitle: 'Free PDF Repair Tool | Fix Corrupted PDFs Online',
+    seoDescription: 'Use our free PDF repair tool to fix corrupted or damaged PDF files instantly. Fast, easy, and 100% online — no installation needed.',
   },
   // ─── Convert TO PDF ────────────────────────────────────────────────────────
   {
@@ -606,6 +610,8 @@ export const TOOLS: Tool[] = [
         defaultValue: '150',
       },
     ],
+    seoTitle: 'Free PDF to Image Converter | Convert PDF to JPG/PNG Online',
+    seoDescription: 'Use our free PDF to image tool to convert PDF pages into JPG or PNG instantly. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'extract',
@@ -706,6 +712,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'converted.csv',
     outputMime: 'text/csv',
+    seoTitle: 'Free PDF to CSV Converter | Extract Data from PDF to CSV Online',
+    seoDescription: 'Use our free PDF to CSV tool to convert PDF files into editable CSV format instantly. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'pdf-to-xml',
@@ -740,6 +748,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'converted.docx',
     outputMime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    seoTitle: 'Free PDF to Word Converter | Convert PDF to DOCX Online',
+    seoDescription: 'Use our free PDF to Word tool to convert PDF files into editable Word documents instantly. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'pdf-to-excel',
@@ -774,6 +784,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'presentation.pptx',
     outputMime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    seoTitle: 'Free PDF to PPTX Converter | Convert PDF to PowerPoint Online',
+    seoDescription: 'Use our free PDF to PPTX tool to convert PDF files into PowerPoint slides instantly. Fast, easy, and 100% online — no installation needed.',
   },
   // ─── Content Editing ───────────────────────────────────────────────────────
   {
@@ -1114,6 +1126,8 @@ export const TOOLS: Tool[] = [
       { name: 'font_size', label: 'Font Size', type: 'number', defaultValue: 12 },
       { name: 'font_color', label: 'Color', type: 'color', defaultValue: '#000000' },
     ],
+    seoTitle: 'Free Bates Numbering Tool | Add Legal Page Numbers to PDFs',
+    seoDescription: 'Use our free Bates numbering tool to add legal page numbers to PDFs instantly. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'edit-text',
@@ -1324,6 +1338,8 @@ export const TOOLS: Tool[] = [
       { name: 'organization', label: 'Organization',  type: 'text', defaultValue: '', placeholder: 'Company name'  },
       { name: 'email',        label: 'Email Address', type: 'text', defaultValue: '', placeholder: 'email@example.com' },
     ],
+    seoTitle: 'Free Digital ID Tool | Create Digital ID Online',
+    seoDescription: 'Use our free digital ID tool to create and manage digital IDs instantly online. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'validate-signature',
@@ -1604,6 +1620,8 @@ export const TOOLS: Tool[] = [
         defaultValue: 'en-US',
       },
     ],
+    seoTitle: 'Free PDF to PDF/A Converter | Convert PDF to PDF/A Online',
+    seoDescription: 'Use our free PDF to PDF/A tool to convert PDF files into archival PDF/A format instantly. Fast, easy, and 100% online — no installation needed.',
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2014,6 +2032,8 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.jpg,.jpeg,.png,.webp',
     outputFormat: 'nobg.png',
     outputMime: 'image/png',
+    seoTitle: 'Free Remove Background Tool | Erase Image Background Online',
+    seoDescription: 'Use our free remove background tool to erase image backgrounds instantly online. Fast, easy, and 100% online — no installation needed.',
   },
   {
     slug: 'image-add-watermark',
