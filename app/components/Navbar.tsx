@@ -32,7 +32,7 @@ export function Navbar({ totalTools }: { totalTools: number }) {
       className="sticky top-0 z-50 border-b"
       style={{ background: '#fff', borderColor: '#e5e7eb', boxShadow: '0 1px 12px rgba(37,150,190,0.08)' }}
     >
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-20 flex items-center gap-3">
 
         {/* Sidebar drawer trigger — left of logo */}
         <button
@@ -50,9 +50,9 @@ export function Navbar({ totalTools }: { totalTools: number }) {
           <Image
             src="/Website_logo_1.2-RB.png"
             alt="Digital Hub"
-            width={220}
-            height={68}
-            className="h-16 w-auto object-contain"
+            width={240}
+            height={72}
+            className="h-18 w-auto object-contain"
             priority
           />
         </Link>
