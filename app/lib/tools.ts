@@ -116,7 +116,7 @@ export const TOOLS: Tool[] = [
     outputFormat: 'merged.pdf',
     outputMime: 'application/pdf',
     params: [
-      { name: 'page_ranges', label: 'Page Ranges per File (e.g. 1-3, 5)', type: 'text', defaultValue: '', placeholder: '1-3, 5' },
+      { name: 'page_ranges', label: 'Page Ranges per File — use | to separate files (e.g. 1-3 | 2,4 | 1)', type: 'text', defaultValue: '', placeholder: '1-3 | 2,4 | 1' },
     ],
     seoTitle: 'Free Selective PDF Merge Tool | Merge Pages Online',
     seoDescription: 'Use our free selective merge tool to combine selected PDF pages instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab!',
