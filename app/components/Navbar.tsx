@@ -50,9 +50,9 @@ export function Navbar({ totalTools }: { totalTools: number }) {
           <Image
             src="/logo_1.7-RB.png"
             alt="Digital Hub"
-            width={240}
-            height={72}
-            className="h-18 w-auto object-contain"
+            width={300}
+            height={90}
+            className="w-[300px] h-auto object-contain"
             priority
           />
         </Link>
