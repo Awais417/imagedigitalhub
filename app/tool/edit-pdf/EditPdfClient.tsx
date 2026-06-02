@@ -5,36 +5,53 @@ import Link from 'next/link';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.godoclab.com/api';
 
-interface Annotation {
+/* ── Types ───────────────────────────────────────────────────────────────── */
+type AnnType = 'text' | 'erase';
+type Mode    = 'text' | 'erase';
+
+interface BaseAnn {
   id: string;
+  type: AnnType;
   page: number;
-  x: number;       // PDF coord — pts from bottom-left
+  x: number;   // PDF pts from bottom-left
   y: number;
+  fx: number;  // fractional 0-1 on image (for visual overlay)
+  fy: number;
+}
+
+interface TextAnn extends BaseAnn {
+  type: 'text';
   text: string;
   fontSize: number;
   fontColor: string;
   opacity: number;
-  fx: number;      // fractional click position 0-1 on displayed image (for marker)
-  fy: number;
 }
 
-interface PdfInfo {
-  pageCount: number;
-  width: number;   // page width in pts
-  height: number;  // page height in pts
+interface EraseAnn extends BaseAnn {
+  type: 'erase';
+  width: number;    // PDF pts
+  height: number;
+  fw: number;       // fractional width on image
+  fh: number;       // fractional height on image
 }
 
+type Annotation = TextAnn | EraseAnn;
+
+interface PdfInfo { pageCount: number; width: number; height: number; }
+
+/* ── Auth helpers ─────────────────────────────────────────────────────────── */
 function getToken(): string | null {
   try { return (JSON.parse(localStorage.getItem('auth') || '{}') as { token?: string }).token ?? null; }
   catch { return null; }
 }
-
 function authHeaders(): HeadersInit {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════ */
 export default function EditPdfClient() {
+  /* ── state ── */
   const [file, setFile]               = useState<File | null>(null);
   const [pdfInfo, setPdfInfo]         = useState<PdfInfo | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -42,20 +59,29 @@ export default function EditPdfClient() {
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [loadingPage, setLoadingPage] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [popup, setPopup]             = useState<{ fx: number; fy: number; x: number; y: number } | null>(null);
-  const [popupText, setPopupText]     = useState('');
+  const [error, setError]             = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [dragging, setDragging]       = useState(false);   // drop-zone drag
+
+  /* toolbar / mode */
+  const [mode, setMode]               = useState<Mode>('text');
   const [fontSize, setFontSize]       = useState(16);
   const [fontColor, setFontColor]     = useState('#000000');
   const [opacity, setOpacity]         = useState(100);
-  const [error, setError]             = useState('');
-  const [downloading, setDownloading] = useState(false);
-  const [dragging, setDragging]       = useState(false);
+
+  /* text popup */
+  const [popup, setPopup]             = useState<{ fx: number; fy: number; x: number; y: number } | null>(null);
+  const [popupText, setPopupText]     = useState('');
+
+  /* erase drag */
+  const [eraseStart, setEraseStart]   = useState<{ fx: number; fy: number } | null>(null);
+  const [eraseDrag, setEraseDrag]     = useState<{ fx: number; fy: number } | null>(null);
 
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const imgRef        = useRef<HTMLImageElement>(null);
   const popupInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Load a single page preview ─────────────────────────────────────────────
+  /* ── load page preview ─────────────────────────────────────────────────── */
   const loadPage = useCallback(async (f: File, page: number) => {
     if (pageCache[page]) return;
     setLoadingPage(true);
@@ -71,27 +97,21 @@ export default function EditPdfClient() {
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       setPageCache(prev => ({ ...prev, [page]: url }));
-    } catch {
-      // silently ignore — show placeholder
-    } finally {
-      setLoadingPage(false);
-    }
+    } catch { /* show placeholder */ }
+    finally { setLoadingPage(false); }
   }, [pageCache]);
 
   useEffect(() => {
     if (file && pdfInfo) loadPage(file, currentPage);
   }, [file, pdfInfo, currentPage, loadPage]);
 
-  // Focus popup input when shown
   useEffect(() => {
     if (popup) setTimeout(() => popupInputRef.current?.focus(), 30);
   }, [popup]);
 
-  // ── Upload & read info ─────────────────────────────────────────────────────
+  /* ── file upload ───────────────────────────────────────────────────────── */
   const handleFile = async (f: File) => {
-    if (!f.name.toLowerCase().endsWith('.pdf')) {
-      setError('Please upload a PDF file.'); return;
-    }
+    if (!f.name.toLowerCase().endsWith('.pdf')) { setError('Please upload a PDF file.'); return; }
     setFile(f);
     setAnnotations([]);
     setPageCache({});
@@ -107,53 +127,108 @@ export default function EditPdfClient() {
       if (!res.ok) throw new Error('Could not read PDF.');
       const info = await res.json() as PdfInfo;
       setPdfInfo(info);
-    } catch (e) {
-      setError((e as Error).message);
-      setFile(null);
-    } finally {
-      setLoadingInfo(false);
-    }
+    } catch (e) { setError((e as Error).message); setFile(null); }
+    finally { setLoadingInfo(false); }
   };
 
-  // ── Click on PDF image → show popup ───────────────────────────────────────
+  /* ── canvas pointer helpers ────────────────────────────────────────────── */
+  const getRelPos = (e: React.MouseEvent) => {
+    const rect = imgRef.current!.getBoundingClientRect();
+    return {
+      fx: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
+      fy: Math.max(0, Math.min(1, (e.clientY - rect.top)  / rect.height)),
+    };
+  };
+
+  /* ── text mode: click → popup ──────────────────────────────────────────── */
   const handleImgClick = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (!pdfInfo || !imgRef.current) return;
-    const rect  = imgRef.current.getBoundingClientRect();
-    const fx    = (e.clientX - rect.left)  / rect.width;
-    const fy    = (e.clientY - rect.top)   / rect.height;
-    const pdfX  = Math.round(fx * pdfInfo.width);
-    const pdfY  = Math.round((1 - fy) * pdfInfo.height);   // flip Y axis (pdf-lib bottom-left)
+    if (!pdfInfo || mode !== 'text') return;
+    const { fx, fy } = getRelPos(e);
+    const pdfX = Math.round(fx * pdfInfo.width);
+    const pdfY = Math.round((1 - fy) * pdfInfo.height);
     setPopup({ fx, fy, x: pdfX, y: pdfY });
     setPopupText('');
   };
 
-  const confirmAnnotation = () => {
+  const confirmText = () => {
     if (!popup || !popupText.trim()) { setPopup(null); return; }
-    setAnnotations(prev => [...prev, {
+    const ann: TextAnn = {
       id: `${Date.now()}-${Math.random()}`,
+      type: 'text',
       page: currentPage,
       x: popup.x, y: popup.y,
+      fx: popup.fx, fy: popup.fy,
       text: popupText.trim(),
       fontSize, fontColor, opacity,
-      fx: popup.fx, fy: popup.fy,
-    }]);
+    };
+    setAnnotations(prev => [...prev, ann]);
     setPopup(null);
     setPopupText('');
   };
 
-  // ── Download ───────────────────────────────────────────────────────────────
+  /* ── erase mode: drag ──────────────────────────────────────────────────── */
+  const handleMouseDown = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (mode !== 'erase') return;
+    e.preventDefault();
+    const pos = getRelPos(e);
+    setEraseStart(pos);
+    setEraseDrag(pos);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (mode !== 'erase' || !eraseStart) return;
+    setEraseDrag(getRelPos(e));
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (mode !== 'erase' || !eraseStart || !pdfInfo) return;
+    const end = getRelPos(e);
+    const fx1 = Math.min(eraseStart.fx, end.fx);
+    const fy1 = Math.min(eraseStart.fy, end.fy);
+    const fw  = Math.abs(end.fx - eraseStart.fx);
+    const fh  = Math.abs(end.fy - eraseStart.fy);
+    if (fw < 0.005 || fh < 0.005) { setEraseStart(null); setEraseDrag(null); return; }
+
+    const ann: EraseAnn = {
+      id: `${Date.now()}-${Math.random()}`,
+      type: 'erase',
+      page: currentPage,
+      x:      Math.round(fx1 * pdfInfo.width),
+      y:      Math.round((1 - (fy1 + fh)) * pdfInfo.height),  // PDF bottom-left
+      width:  Math.round(fw * pdfInfo.width),
+      height: Math.round(fh * pdfInfo.height),
+      fx: fx1, fy: fy1, fw, fh,
+    };
+    setAnnotations(prev => [...prev, ann]);
+    setEraseStart(null);
+    setEraseDrag(null);
+  };
+
+  /* live drag rect */
+  const dragRect = eraseStart && eraseDrag ? {
+    left:   `${Math.min(eraseStart.fx, eraseDrag.fx) * 100}%`,
+    top:    `${Math.min(eraseStart.fy, eraseDrag.fy) * 100}%`,
+    width:  `${Math.abs(eraseDrag.fx - eraseStart.fx) * 100}%`,
+    height: `${Math.abs(eraseDrag.fy - eraseStart.fy) * 100}%`,
+  } : null;
+
+  /* ── download ──────────────────────────────────────────────────────────── */
   const handleDownload = async () => {
     if (!file || annotations.length === 0) return;
     setDownloading(true);
     setError('');
     try {
+      const elements = annotations.map(a => {
+        if (a.type === 'erase') {
+          return { type: 'erase', page: a.page, x: a.x, y: a.y, width: a.width, height: a.height };
+        }
+        const t = a as TextAnn;
+        return { type: 'text', text: t.text, page: t.page, x: t.x, y: t.y,
+                 font_size: t.fontSize, font_color: t.fontColor, opacity: t.opacity, rotation: 0 };
+      });
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('text_boxes', JSON.stringify(annotations.map(a => ({
-        text: a.text, page: a.page, x: a.x, y: a.y,
-        font_size: a.fontSize, font_color: a.fontColor,
-        opacity: a.opacity, rotation: 0,
-      }))));
+      fd.append('elements', JSON.stringify(elements));
       const res = await fetch(`${API_BASE}/pdf/edit-pdf`, {
         method: 'POST', headers: authHeaders(), body: fd,
       });
@@ -162,31 +237,29 @@ export default function EditPdfClient() {
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
-      a.download = file.name.replace(/\.[^.]+$/, '') + '.pdf';
+      a.download = file.name.replace(/\.[^.]+$/, '') + '_edited.pdf';
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setDownloading(false);
-    }
+    } catch (e) { setError((e as Error).message); }
+    finally { setDownloading(false); }
   };
 
-  // ── Drop zone ──────────────────────────────────────────────────────────────
+  /* ── drop zone ─────────────────────────────────────────────────────────── */
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDragging(false);
     const f = e.dataTransfer.files[0];
     if (f) handleFile(f);
   };
 
-  // ─── Upload screen ─────────────────────────────────────────────────────────
+  /* ─── Upload screen ─────────────────────────────────────────────────────── */
   if (!file || !pdfInfo) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <div className="bg-white border-b px-6 py-4 flex items-center gap-3">
-          <Link href="/" className="text-gray-500 hover:text-gray-700 text-sm">← Back</Link>
-          <h1 className="text-xl font-semibold text-gray-800">Edit PDF</h1>
-          <p className="text-sm text-gray-400 ml-2">Click anywhere on the page to add text</p>
+        <div className="bg-white border-b px-6 py-4 flex items-center gap-3 shadow-sm">
+          <Link href="/" className="text-gray-400 hover:text-gray-600 text-sm font-medium transition-colors">← Back</Link>
+          <span className="text-gray-300">|</span>
+          <h1 className="text-lg font-bold text-gray-800">Edit PDF</h1>
+          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full ml-1">Add text · Erase content</span>
         </div>
         <div className="flex-1 flex items-center justify-center p-8">
           <div
@@ -194,62 +267,118 @@ export default function EditPdfClient() {
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onClick={() => fileInputRef.current?.click()}
-            className={`w-full max-w-lg border-2 border-dashed rounded-2xl p-16 flex flex-col items-center gap-4 cursor-pointer transition-colors bg-white
-              ${dragging ? 'border-blue-500 bg-blue-50' : 'border-blue-300 hover:border-blue-500 hover:bg-blue-50'}`}
+            className={`w-full max-w-lg border-2 border-dashed rounded-2xl p-16 flex flex-col items-center gap-4 cursor-pointer transition-all bg-white
+              ${dragging ? 'border-blue-500 bg-blue-50 scale-[1.02]' : 'border-blue-200 hover:border-blue-400 hover:bg-blue-50'}`}
           >
-            <div className="text-6xl">📄</div>
-            <p className="text-xl font-semibold text-gray-700">
-              {loadingInfo ? 'Loading PDF…' : 'Click or drag a PDF here'}
-            </p>
-            <p className="text-sm text-gray-400">Click on any part of the page to place your text</p>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
+            <div className="text-7xl">📄</div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-gray-700">
+                {loadingInfo ? 'Reading PDF…' : 'Click or drag a PDF here'}
+              </p>
+              <p className="text-sm text-gray-400 mt-1">
+                Add text anywhere · Erase / remove existing content
+              </p>
+            </div>
+            {error && <p className="text-red-500 text-sm bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
             <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            <div className="flex gap-4 mt-2">
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                <span>✏️</span><span>Add Text</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                <span>⬜</span><span>Erase Content</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                <span>⬇️</span><span>Download</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  const currentAnnotations = annotations.filter(a => a.page === currentPage);
-  const currentImage       = pageCache[currentPage];
+  const currentAnns  = annotations.filter(a => a.page === currentPage);
+  const currentImage = pageCache[currentPage];
+  const editCount    = annotations.length;
 
-  // ─── Editor screen ─────────────────────────────────────────────────────────
+  /* ─── Editor screen ─────────────────────────────────────────────────────── */
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-100">
 
       {/* ── Top toolbar ── */}
-      <div className="bg-white border-b px-4 py-2 flex items-center gap-3 flex-wrap shrink-0 z-20">
-        <Link href="/" className="text-gray-500 hover:text-gray-700 text-sm shrink-0">← Back</Link>
-        <span className="text-sm font-medium text-gray-700 truncate max-w-[180px]">{file.name}</span>
+      <div className="bg-white border-b px-4 py-2 flex items-center gap-2 flex-wrap shrink-0 z-20 shadow-sm">
+        <Link href="/" className="text-gray-400 hover:text-gray-600 text-sm shrink-0 mr-1">← Back</Link>
 
-        <div className="flex items-center gap-2 ml-auto flex-wrap">
-          <span className="text-xs text-gray-500">Size</span>
-          <input type="number" value={fontSize} min={6} max={96}
-            onChange={e => setFontSize(Number(e.target.value))}
-            className="w-14 border rounded px-2 py-1 text-sm text-center" />
-
-          <span className="text-xs text-gray-500">Color</span>
-          <input type="color" value={fontColor}
-            onChange={e => setFontColor(e.target.value)}
-            className="w-8 h-8 rounded cursor-pointer border p-0.5" />
-
-          <span className="text-xs text-gray-500">Opacity %</span>
-          <input type="number" value={opacity} min={10} max={100}
-            onChange={e => setOpacity(Number(e.target.value))}
-            className="w-16 border rounded px-2 py-1 text-sm text-center" />
-
+        {/* Mode buttons */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           <button
-            onClick={handleDownload}
-            disabled={downloading || annotations.length === 0}
-            className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            onClick={() => setMode('text')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              mode === 'text'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-200'
+            }`}
           >
-            {downloading ? 'Saving…' : `⬇ Download (${annotations.length} edit${annotations.length !== 1 ? 's' : ''})`}
+            ✏️ Add Text
+          </button>
+          <button
+            onClick={() => setMode('erase')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              mode === 'erase'
+                ? 'bg-red-500 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            ⬜ Erase
           </button>
         </div>
+
+        {/* Text options — only show in text mode */}
+        {mode === 'text' && (
+          <div className="flex items-center gap-2 ml-2">
+            <label className="text-xs text-gray-500">Size</label>
+            <input type="number" value={fontSize} min={6} max={96}
+              onChange={e => setFontSize(Number(e.target.value))}
+              className="w-14 border border-gray-200 rounded-md px-2 py-1 text-sm text-center bg-gray-50" />
+
+            <label className="text-xs text-gray-500">Color</label>
+            <input type="color" value={fontColor}
+              onChange={e => setFontColor(e.target.value)}
+              className="w-8 h-8 rounded-md cursor-pointer border border-gray-200 p-0.5 bg-gray-50" />
+
+            <label className="text-xs text-gray-500">Opacity%</label>
+            <input type="number" value={opacity} min={10} max={100}
+              onChange={e => setOpacity(Number(e.target.value))}
+              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-sm text-center bg-gray-50" />
+          </div>
+        )}
+
+        {mode === 'erase' && (
+          <span className="text-xs text-red-500 bg-red-50 px-3 py-1 rounded-full ml-2 font-medium">
+            Click & drag on the PDF to erase text
+          </span>
+        )}
+
+        {/* filename */}
+        <span className="text-xs text-gray-400 truncate max-w-[140px] ml-1 hidden sm:block">{file.name}</span>
+
+        {/* Download */}
+        <button
+          onClick={handleDownload}
+          disabled={downloading || editCount === 0}
+          className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+        >
+          {downloading ? '⏳ Saving…' : `⬇ Download${editCount > 0 ? ` (${editCount})` : ''}`}
+        </button>
       </div>
 
-      {error && <div className="bg-red-50 text-red-600 px-4 py-2 text-sm shrink-0">{error}</div>}
+      {error && (
+        <div className="bg-red-50 text-red-600 px-4 py-2 text-sm shrink-0 border-b border-red-100">
+          ⚠️ {error}
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
 
@@ -257,10 +386,11 @@ export default function EditPdfClient() {
         <div className="w-20 bg-white border-r flex flex-col items-center py-3 gap-2 overflow-y-auto shrink-0">
           {Array.from({ length: pdfInfo.pageCount }, (_, i) => i + 1).map(p => (
             <button key={p} onClick={() => setCurrentPage(p)}
-              className={`w-14 py-2 rounded border-2 text-xs font-medium transition-colors
-                ${p === currentPage
+              className={`w-14 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
+                p === currentPage
                   ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 text-gray-500 hover:border-blue-300'}`}
+                  : 'border-gray-100 text-gray-400 hover:border-blue-200 hover:text-gray-600'
+              }`}
             >
               {p}
               {annotations.some(a => a.page === p) && (
@@ -271,12 +401,12 @@ export default function EditPdfClient() {
         </div>
 
         {/* ── Center: PDF canvas ── */}
-        <div className="flex-1 overflow-auto flex justify-center items-start p-6">
-          <div className="relative shadow-xl" style={{ userSelect: 'none' }}>
+        <div className="flex-1 overflow-auto flex justify-center items-start p-6 bg-gray-100">
+          <div className="relative shadow-2xl rounded-sm" style={{ userSelect: 'none' }}>
 
             {/* Page image */}
             {!currentImage || loadingPage ? (
-              <div className="w-[595px] h-[842px] bg-white border flex items-center justify-center rounded">
+              <div className="w-[595px] h-[842px] bg-white border border-gray-200 flex items-center justify-center rounded">
                 <span className="text-gray-400 text-sm animate-pulse">Loading page {currentPage}…</span>
               </div>
             ) : (
@@ -284,54 +414,99 @@ export default function EditPdfClient() {
                 ref={imgRef}
                 src={currentImage}
                 alt={`Page ${currentPage}`}
-                onClick={handleImgClick}
+                onClick={mode === 'text' ? handleImgClick : undefined}
+                onMouseDown={mode === 'erase' ? handleMouseDown : undefined}
+                onMouseMove={mode === 'erase' ? handleMouseMove : undefined}
+                onMouseUp={mode === 'erase' ? handleMouseUp : undefined}
                 draggable={false}
-                className="block max-w-[780px] w-full rounded border cursor-crosshair"
+                className="block max-w-[780px] w-full rounded border border-gray-200"
+                style={{ cursor: mode === 'erase' ? 'crosshair' : 'text' }}
               />
             )}
 
-            {/* Annotation markers */}
-            {currentImage && currentAnnotations.map(ann => (
-              <div key={ann.id} className="absolute pointer-events-none"
-                style={{ left: `${ann.fx * 100}%`, top: `${ann.fy * 100}%`, transform: 'translate(-2px, -10px)' }}>
-                <div
-                  className="text-xs rounded px-1.5 py-0.5 whitespace-nowrap max-w-[180px] truncate shadow font-medium"
-                  style={{ background: ann.fontColor, color: '#fff', fontSize: `${Math.min(ann.fontSize, 13)}px`, opacity: ann.opacity / 100 }}
-                >
-                  {ann.text}
-                </div>
-              </div>
-            ))}
+            {/* Annotation overlays */}
+            {currentImage && currentAnns.map(ann => {
+              if (ann.type === 'text') {
+                const t = ann as TextAnn;
+                return (
+                  <div key={t.id} className="absolute pointer-events-none"
+                    style={{ left: `${t.fx * 100}%`, top: `${t.fy * 100}%`, transform: 'translate(-2px, -100%)' }}>
+                    <div
+                      className="text-xs rounded px-1.5 py-0.5 whitespace-nowrap max-w-[200px] truncate shadow-sm border border-white/30 font-medium"
+                      style={{
+                        background: t.fontColor,
+                        color: '#fff',
+                        fontSize: `${Math.min(t.fontSize, 14)}px`,
+                        opacity: t.opacity / 100,
+                      }}
+                    >
+                      {t.text}
+                    </div>
+                  </div>
+                );
+              }
+              if (ann.type === 'erase') {
+                const er = ann as EraseAnn;
+                return (
+                  <div key={er.id} className="absolute pointer-events-none"
+                    style={{
+                      left:   `${er.fx * 100}%`,
+                      top:    `${er.fy * 100}%`,
+                      width:  `${er.fw * 100}%`,
+                      height: `${er.fh * 100}%`,
+                      background: 'rgba(255,255,255,0.85)',
+                      border: '2px dashed #ef4444',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <span className="absolute top-0.5 left-1 text-[9px] text-red-400 font-bold select-none">ERASED</span>
+                  </div>
+                );
+              }
+              return null;
+            })}
 
-            {/* Floating text-input popup */}
+            {/* Live erase drag rect */}
+            {dragRect && (
+              <div className="absolute pointer-events-none"
+                style={{
+                  ...dragRect,
+                  background: 'rgba(239,68,68,0.12)',
+                  border: '2px dashed #ef4444',
+                  boxSizing: 'border-box',
+                }}
+              />
+            )}
+
+            {/* Text popup */}
             {popup && (
               <div className="absolute z-30"
                 style={{
-                  left: `${Math.min(popup.fx * 100, 65)}%`,
-                  top:  `${Math.min(popup.fy * 100, 85)}%`,
-                  transform: 'translate(6px, -50%)',
+                  left: `${Math.min(popup.fx * 100, 62)}%`,
+                  top:  `${Math.min(popup.fy * 100, 82)}%`,
+                  transform: 'translate(8px, -50%)',
                 }}>
-                <div className="bg-white border-2 border-blue-400 rounded-xl shadow-2xl p-3 flex flex-col gap-2 w-56">
-                  <p className="text-xs text-gray-400">Type text to insert at this position</p>
+                <div className="bg-white border-2 border-blue-400 rounded-xl shadow-2xl p-3 flex flex-col gap-2 w-60">
+                  <p className="text-xs font-semibold text-blue-600">Add text at this position</p>
                   <input
                     ref={popupInputRef}
                     type="text"
                     value={popupText}
                     onChange={e => setPopupText(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter') confirmAnnotation();
+                      if (e.key === 'Enter') confirmText();
                       if (e.key === 'Escape') setPopup(null);
                     }}
-                    placeholder="Your text…"
-                    className="border rounded px-2 py-1.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder="Type your text…"
+                    className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-300"
                   />
                   <div className="flex gap-2">
-                    <button onClick={confirmAnnotation}
-                      className="flex-1 bg-blue-600 text-white text-xs font-semibold rounded-lg px-3 py-1.5 hover:bg-blue-700">
-                      Add
+                    <button onClick={confirmText}
+                      className="flex-1 bg-blue-600 text-white text-xs font-bold rounded-lg px-3 py-1.5 hover:bg-blue-700 transition-colors">
+                      ✓ Add
                     </button>
                     <button onClick={() => setPopup(null)}
-                      className="flex-1 border text-xs rounded-lg px-3 py-1.5 hover:bg-gray-50 text-gray-600">
+                      className="flex-1 border border-gray-200 text-xs rounded-lg px-3 py-1.5 hover:bg-gray-50 text-gray-500 transition-colors">
                       Cancel
                     </button>
                   </div>
@@ -341,39 +516,88 @@ export default function EditPdfClient() {
           </div>
         </div>
 
-        {/* ── Right: annotations list ── */}
-        <div className="w-60 bg-white border-l flex flex-col shrink-0 overflow-hidden">
+        {/* ── Right: annotations panel ── */}
+        <div className="w-64 bg-white border-l flex flex-col shrink-0 overflow-hidden">
           <div className="px-4 py-3 border-b shrink-0">
-            <h3 className="font-semibold text-sm text-gray-700">Added Text ({annotations.length})</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Click the PDF to add text anywhere</p>
+            <h3 className="font-bold text-sm text-gray-700">
+              Edits
+              <span className="ml-1.5 text-xs font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                {editCount}
+              </span>
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {mode === 'text' ? '✏️ Click on the PDF to add text' : '⬜ Drag on the PDF to erase'}
+            </p>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
-            {annotations.length === 0 && (
-              <p className="text-xs text-gray-400 text-center mt-10 leading-relaxed">
-                No text added yet.<br />
-                <span className="font-medium text-gray-500">Click anywhere on the PDF</span><br />
-                to insert text at that position.
-              </p>
-            )}
-            {annotations.map(ann => (
-              <div key={ann.id}
-                className={`border rounded-lg p-2 text-xs cursor-pointer transition-colors
-                  ${ann.page === currentPage ? 'border-blue-200 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
-                onClick={() => setCurrentPage(ann.page)}
-              >
-                <div className="flex items-start gap-1">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-800 truncate">"{ann.text}"</p>
-                    <p className="text-gray-400 mt-0.5">Pg {ann.page} · {ann.fontSize}pt</p>
-                  </div>
-                  <button
-                    onClick={e => { e.stopPropagation(); setAnnotations(prev => prev.filter(a => a.id !== ann.id)); }}
-                    className="text-red-400 hover:text-red-600 text-base leading-none shrink-0 ml-1"
-                  >×</button>
-                </div>
+
+          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
+            {editCount === 0 ? (
+              <div className="text-center mt-10 px-4">
+                <p className="text-2xl mb-2">✏️</p>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  No edits yet.<br />
+                  Use <b className="text-gray-500">Add Text</b> to insert text or <b className="text-gray-500">Erase</b> to remove content.
+                </p>
               </div>
-            ))}
+            ) : (
+              annotations.map(ann => (
+                <div key={ann.id}
+                  onClick={() => setCurrentPage(ann.page)}
+                  className={`border rounded-lg p-2 text-xs cursor-pointer transition-all hover:shadow-sm ${
+                    ann.page === currentPage
+                      ? ann.type === 'erase'
+                        ? 'border-red-200 bg-red-50'
+                        : 'border-blue-200 bg-blue-50'
+                      : 'border-gray-100 hover:border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-1.5">
+                    <span className={`text-base mt-0.5 shrink-0 ${ann.type === 'erase' ? 'text-red-400' : 'text-blue-400'}`}>
+                      {ann.type === 'erase' ? '⬜' : '✏️'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      {ann.type === 'text' && (
+                        <>
+                          <p className="font-semibold text-gray-800 truncate">"{(ann as TextAnn).text}"</p>
+                          <p className="text-gray-400 mt-0.5">Pg {ann.page} · {(ann as TextAnn).fontSize}pt</p>
+                        </>
+                      )}
+                      {ann.type === 'erase' && (
+                        <>
+                          <p className="font-semibold text-red-700">Erase area</p>
+                          <p className="text-gray-400 mt-0.5">
+                            Pg {ann.page} · {(ann as EraseAnn).width}×{(ann as EraseAnn).height}pt
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        setAnnotations(prev => prev.filter(a => a.id !== ann.id));
+                      }}
+                      className="text-gray-300 hover:text-red-500 text-base leading-none shrink-0 transition-colors"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
+
+          {/* bottom hint */}
+          {editCount > 0 && (
+            <div className="px-4 py-3 border-t bg-gray-50 shrink-0">
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {downloading ? '⏳ Saving…' : `⬇ Download PDF`}
+              </button>
+            </div>
+          )}
         </div>
 
       </div>
