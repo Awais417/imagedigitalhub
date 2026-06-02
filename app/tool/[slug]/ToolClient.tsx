@@ -237,11 +237,12 @@ export default function ToolClient({ slug }: { slug: string }) {
     const hasUrl  = tool?.fileOptional && params['url']?.trim();
     if (!tool || (!hasFile && !hasUrl)) return;
 
-    if (tool.multipleFiles && files.length < 2) {
+    const minRequired = tool.minFiles ?? 2;
+    if (tool.multipleFiles && files.length < minRequired) {
       Swal.fire({
         icon: 'warning',
         title: 'More files needed',
-        text: 'Please upload at least 2 files.',
+        text: `Please upload at least ${minRequired} file${minRequired === 1 ? '' : 's'}.`,
         confirmButtonText: 'Got it',
         confirmButtonColor: '#2596be',
       });

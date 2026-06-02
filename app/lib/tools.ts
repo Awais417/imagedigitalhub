@@ -18,6 +18,8 @@ export interface Tool {
   category: string;
   apiEndpoint: string;
   multipleFiles: boolean;
+  /** Minimum number of files required when multipleFiles=true. Defaults to 2. */
+  minFiles?: number;
   fileOptional?: boolean;
   inputLabel: string;
   acceptedFormats: string;
@@ -35,7 +37,7 @@ export interface Tool {
 export const CATEGORIES = [
   // ── PDF Categories ──────────────────────────────────────────────────────
   { id: 'organize',    label: 'Merge, Split & Organize',   color: '#3b82f6', icon: '🔀' },
-  { id: 'optimize',    label: 'Document Optimization',     color: '#06b6d4', icon: '⚡' },
+  // { id: 'optimize',    label: 'Document Optimization',     color: '#06b6d4', icon: '⚡' },
   { id: 'to-pdf',      label: 'Convert TO PDF',            color: '#22c55e', icon: '⬆️' },
   { id: 'from-pdf',    label: 'Convert FROM PDF',          color: '#16a34a', icon: '⬇️' },
   { id: 'edit',        label: 'PDF Content Editing',       color: '#f97316', icon: '✏️' },
@@ -501,6 +503,7 @@ export const TOOLS: Tool[] = [
     category: 'to-pdf',
     apiEndpoint: '/pdf/image-to-pdf',
     multipleFiles: true,
+    minFiles: 1,
     inputLabel: 'Select images',
     acceptedFormats: '.jpg,.jpeg,.png,.tiff,.bmp,.gif',
     outputFormat: 'converted.pdf',
