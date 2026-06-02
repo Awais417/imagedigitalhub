@@ -24,6 +24,9 @@ export interface Tool {
   outputFormat: string;
   outputMime: string;
   params?: ToolParam[];
+  /** When set, ToolClient shows the PDF page as an interactive canvas.
+   *  'point' = click to set x,y  |  'area' = drag to set x,y,width,height */
+  pdfPositionMode?: 'point' | 'area';
   /** SEO overrides — if omitted the tool name/description are used as fallbacks */
   seoTitle?: string;
   seoDescription?: string;
@@ -968,6 +971,7 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'edited.pdf',
     outputMime: 'application/pdf',
+    pdfPositionMode: 'point',
     params: [
       { name: 'text', label: 'Text Content', type: 'text', defaultValue: 'Your text here', placeholder: 'Enter text to add' },
       { name: 'pages', label: 'Page (e.g. 1)', type: 'text', defaultValue: '1', placeholder: '1' },
@@ -996,6 +1000,7 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'annotated.pdf',
     outputMime: 'application/pdf',
+    pdfPositionMode: 'point',
     params: [
       { name: 'text', label: 'Note Text', type: 'text', defaultValue: 'Note here', placeholder: 'Enter note content' },
       { name: 'pages', label: 'Page Number', type: 'number', defaultValue: 1 },
@@ -1020,6 +1025,7 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'highlighted.pdf',
     outputMime: 'application/pdf',
+    pdfPositionMode: 'area',
     params: [
       { name: 'pages', label: 'Page Number', type: 'number', defaultValue: 1 },
       { name: 'x', label: 'X Position (px)', type: 'number', defaultValue: 100 },
@@ -1046,6 +1052,7 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'underlined.pdf',
     outputMime: 'application/pdf',
+    pdfPositionMode: 'area',
     params: [
       { name: 'pages', label: 'Page Number', type: 'number', defaultValue: 1 },
       { name: 'x', label: 'X Position (px)', type: 'number', defaultValue: 100 },
@@ -1071,6 +1078,7 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'strikeout.pdf',
     outputMime: 'application/pdf',
+    pdfPositionMode: 'area',
     params: [
       { name: 'pages', label: 'Page Number', type: 'number', defaultValue: 1 },
       { name: 'x', label: 'X Position (px)', type: 'number', defaultValue: 100 },
@@ -1209,6 +1217,7 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'edited.pdf',
     outputMime: 'application/pdf',
+    pdfPositionMode: 'point',
     params: [
       { name: 'new_text', label: 'Replacement Text', type: 'text', defaultValue: '', placeholder: 'New text to write' },
       { name: 'page', label: 'Page Number', type: 'number', defaultValue: 1 },
@@ -1334,6 +1343,7 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'redacted.pdf',
     outputMime: 'application/pdf',
+    pdfPositionMode: 'area',
     params: [
       { name: 'page', label: 'Page Number', type: 'number', defaultValue: 1 },
       { name: 'x', label: 'X Position (px)', type: 'number', defaultValue: 100 },

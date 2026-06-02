@@ -48,11 +48,11 @@ export function Navbar({ totalTools }: { totalTools: number }) {
         {/* Logo */}
         <Link href="/" className="shrink-0">
           <Image
-            src="/logo_1.7-RB.png"
+            src="/Website_logo_1.2-RB.png"
             alt="Digital Hub"
-            width={300}
-            height={90}
-            className="w-[300px] h-auto object-contain"
+            width={240}
+            height={72}
+            className="h-18 w-auto object-contain"
             priority
           />
         </Link>
