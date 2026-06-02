@@ -268,32 +268,60 @@ export default function ToolClient({ slug }: { slug: string }) {
 
       const blob = await apiPostBlob(tool.apiEndpoint, formData);
 
-      // ── PDF to Image: if result is a ZIP, extract each image and download individually ──
+      // ── PDF to Image: multi-page ZIP → save into a folder using File System Access API ──
       const isZip = blob.type.includes('zip') || blob.type.includes('octet-stream');
       if (tool.slug === 'pdf-to-image' && isZip) {
         const zip      = await JSZip.loadAsync(await blob.arrayBuffer());
         const entries  = Object.values(zip.files).filter(f => !f.dir);
         const origBase = (files[0]?.name ?? '').replace(/\.[^.]+$/, '') || 'document';
-        for (let i = 0; i < entries.length; i++) {
-          const entry     = entries[i];
-          const imgBuf    = await entry.async('arraybuffer');
-          const ext       = entry.name.split('.').pop() ?? 'jpg';
-          const imgBlob   = new Blob([imgBuf], { type: ext === 'png' ? 'image/png' : 'image/jpeg' });
-          const imgUrl    = URL.createObjectURL(imgBlob);
-          const a         = document.createElement('a');
-          a.href          = imgUrl;
-          a.download      = entries.length === 1
-            ? `${origBase}.${ext}`
-            : `${origBase}_page${String(i + 1).padStart(3, '0')}.${ext}`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(imgUrl);
-          // small delay between downloads so the browser doesn't block them
-          if (i < entries.length - 1) await new Promise(r => setTimeout(r, 120));
+
+        if (entries.length > 0 && 'showDirectoryPicker' in window) {
+          // ── Modern path: File System Access API → real folder on disk ──
+          try {
+            const dirHandle = await (window as any).showDirectoryPicker({
+              suggestedName: `${origBase}_images`,
+              mode: 'readwrite',
+            });
+            for (let i = 0; i < entries.length; i++) {
+              const entry    = entries[i];
+              const imgBuf   = await entry.async('arraybuffer');
+              const ext      = entry.name.split('.').pop() ?? 'jpg';
+              const filename = entries.length === 1
+                ? `${origBase}.${ext}`
+                : `${origBase}_page${String(i + 1).padStart(3, '0')}.${ext}`;
+              const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+              const writable   = await fileHandle.createWritable();
+              await writable.write(imgBuf);
+              await writable.close();
+            }
+            setDownloadUrl('done');
+            setDownloadName(`${origBase}_images folder — ${entries.length} image${entries.length === 1 ? '' : 's'} saved`);
+          } catch (e: any) {
+            if (e?.name !== 'AbortError') throw e;
+            // user cancelled the picker — stay on processing screen
+          }
+        } else {
+          // ── Fallback: individual file downloads ──
+          for (let i = 0; i < entries.length; i++) {
+            const entry   = entries[i];
+            const imgBuf  = await entry.async('arraybuffer');
+            const ext     = entry.name.split('.').pop() ?? 'jpg';
+            const imgBlob = new Blob([imgBuf], { type: ext === 'png' ? 'image/png' : 'image/jpeg' });
+            const imgUrl  = URL.createObjectURL(imgBlob);
+            const a       = document.createElement('a');
+            a.href        = imgUrl;
+            a.download    = entries.length === 1
+              ? `${origBase}.${ext}`
+              : `${origBase}_page${String(i + 1).padStart(3, '0')}.${ext}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(imgUrl);
+            if (i < entries.length - 1) await new Promise(r => setTimeout(r, 120));
+          }
+          setDownloadUrl('done');
+          setDownloadName(`${origBase} (${entries.length} image${entries.length === 1 ? '' : 's'})`);
         }
-        setDownloadUrl('done');
-        setDownloadName(`${origBase} (${entries.length} image${entries.length === 1 ? '' : 's'})`);
         setLoading(false);
         return;
       }
