@@ -1,576 +1,601 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.godoclab.com/api';
 
-/* ── Types ───────────────────────────────────────────────────────────────── */
-type AnnType = 'text' | 'erase';
-type Mode    = 'text' | 'erase';
-
-interface BaseAnn {
-  id: string;
-  type: AnnType;
-  page: number;
-  x: number;   // PDF pts from bottom-left
-  y: number;
-  fx: number;  // fractional 0-1 on image (for visual overlay)
-  fy: number;
+/* ── types ─────────────────────────────────────────────────────────────────── */
+interface TextAnn {
+  id: string; type: 'text'; page: number;
+  fx: number; fy: number;           // 0-1 on rendered image (anchor = top-left of text)
+  x: number;  y: number;            // PDF pts (bottom-left origin)
+  text: string; fontSize: number; fontColor: string; opacity: number;
 }
-
-interface TextAnn extends BaseAnn {
-  type: 'text';
-  text: string;
-  fontSize: number;
-  fontColor: string;
-  opacity: number;
+interface EraseAnn {
+  id: string; type: 'erase'; page: number;
+  fx: number; fy: number; fw: number; fh: number;   // fractional rect
+  x: number;  y: number;  width: number; height: number; // PDF pts
 }
-
-interface EraseAnn extends BaseAnn {
-  type: 'erase';
-  width: number;    // PDF pts
-  height: number;
-  fw: number;       // fractional width on image
-  fh: number;       // fractional height on image
-}
-
 type Annotation = TextAnn | EraseAnn;
-
+type Mode = 'text' | 'erase';
 interface PdfInfo { pageCount: number; width: number; height: number; }
 
-/* ── Auth helpers ─────────────────────────────────────────────────────────── */
-function getToken(): string | null {
-  try { return (JSON.parse(localStorage.getItem('auth') || '{}') as { token?: string }).token ?? null; }
+/* ── auth ──────────────────────────────────────────────────────────────────── */
+function getToken() {
+  try { return (JSON.parse(localStorage.getItem('auth') || '{}') as any).token ?? null; }
   catch { return null; }
 }
-function authHeaders(): HeadersInit {
-  const t = getToken();
-  return t ? { Authorization: `Bearer ${t}` } : {};
+const authHdrs = (): HeadersInit => {
+  const t = getToken(); return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+/* ── pdfjs (browser-only) ─────────────────────────────────────────────────── */
+let _pdfjs: any = null;
+async function pdfjs() {
+  if (_pdfjs) return _pdfjs;
+  _pdfjs = await import('pdfjs-dist');
+  _pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  return _pdfjs;
 }
 
-/* ── pdfjs setup (runs only in browser) ─────────────────────────────────── */
-let _pdfjsLib: any = null;
-async function getPdfjsLib() {
-  if (_pdfjsLib) return _pdfjsLib;
-  _pdfjsLib = await import('pdfjs-dist');
-  _pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-  return _pdfjsLib;
-}
+const uid = () => `${Date.now()}-${Math.random()}`;
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function EditPdfClient() {
-  /* ── state ── */
-  const [file, setFile]               = useState<File | null>(null);
-  const [pdfInfo, setPdfInfo]         = useState<PdfInfo | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageCache, setPageCache]     = useState<Record<number, string>>({});
-  const [loadingInfo, setLoadingInfo] = useState(false);
-  const [loadingPage, setLoadingPage] = useState(false);
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [error, setError]             = useState('');
-  const [downloading, setDownloading] = useState(false);
-  const [dropDrag, setDropDrag]       = useState(false);
 
-  /* toolbar */
-  const [mode, setMode]               = useState<Mode>('text');
-  const [fontSize, setFontSize]       = useState(14);
-  const [fontColor, setFontColor]     = useState('#000000');
-  const [opacity, setOpacity]         = useState(100);
+  /* core */
+  const [file, setFile]             = useState<File | null>(null);
+  const [pdfInfo, setPdfInfo]       = useState<PdfInfo | null>(null);
+  const [page, setPage]             = useState(1);
+  const [cache, setCache]           = useState<Record<number,string>>({});
+  const [busy, setBusy]             = useState(false);          // rendering
+  const [downloading, setDl]        = useState(false);
+  const [error, setError]           = useState('');
+  const [dropDrag, setDropDrag]     = useState(false);
+  const pdfDocRef                   = useRef<any>(null);
 
-  /* text popup */
-  const [popup, setPopup]             = useState<{ fx: number; fy: number; x: number; y: number } | null>(null);
-  const [popupText, setPopupText]     = useState('');
+  /* annotations */
+  const [anns, setAnns]             = useState<Annotation[]>([]);
 
-  /* erase drag */
-  const [eraseStart, setEraseStart]   = useState<{ fx: number; fy: number } | null>(null);
-  const [eraseDrag, setEraseDrag]     = useState<{ fx: number; fy: number } | null>(null);
+  /* mode & toolbar */
+  const [mode, setMode]             = useState<Mode>('text');
+  const [fontSize, setFontSize]     = useState(14);
+  const [fontColor, setFontColor]   = useState('#e53e3e');    // red default (visible)
+  const [opacity, setOpacity]       = useState(100);
 
+  /* inline editing state */
+  const [editingId, setEditingId]   = useState<string | null>(null);
+  const [editText, setEditText]     = useState('');
+  const editInputRef                = useRef<HTMLInputElement>(null);
+
+  /* drag state */
+  const [dragId, setDragId]         = useState<string | null>(null);
+  const dragOffset                  = useRef({ dx: 0, dy: 0 });
+
+  /* erase draw state */
+  const [eraseStart, setEraseStart] = useState<{fx:number;fy:number}|null>(null);
+  const [eraseDrag, setEraseDrag]   = useState<{fx:number;fy:number}|null>(null);
+
+  /* DOM refs */
   const fileInputRef  = useRef<HTMLInputElement>(null);
+  const canvasWrapRef = useRef<HTMLDivElement>(null);    // the relative-positioned wrapper
   const imgRef        = useRef<HTMLImageElement>(null);
-  const popupInputRef = useRef<HTMLInputElement>(null);
-  const pdfDocRef     = useRef<any>(null); // holds the pdfjs PDFDocumentProxy
 
-  /* ── render a single PDF page client-side via pdfjs ──────────────────── */
-  const renderPage = useCallback(async (pageNum: number) => {
-    if (!pdfDocRef.current) return;
-    if (pageCache[pageNum]) return;  // already cached
-    setLoadingPage(true);
+  /* ── render one PDF page ─────────────────────────────────────────────── */
+  const renderPage = useCallback(async (n: number) => {
+    if (!pdfDocRef.current || cache[n]) return;
+    setBusy(true);
     try {
-      const pdfPage  = await pdfDocRef.current.getPage(pageNum);
-      const viewport = pdfPage.getViewport({ scale: 1.5 });
-      const canvas   = document.createElement('canvas');
-      const ctx      = canvas.getContext('2d')!;
-      canvas.width   = viewport.width;
-      canvas.height  = viewport.height;
-      // White background
-      ctx.fillStyle  = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      await pdfPage.render({ canvasContext: ctx, viewport }).promise;
-      const dataUrl = canvas.toDataURL('image/png');
-      setPageCache(prev => ({ ...prev, [pageNum]: dataUrl }));
-    } catch (e) {
-      console.error('pdfjs render error:', e);
-    } finally {
-      setLoadingPage(false);
-    }
-  }, [pageCache]);
+      const pg = await pdfDocRef.current.getPage(n);
+      const vp = pg.getViewport({ scale: 1.5 });
+      const cv = document.createElement('canvas');
+      const cx = cv.getContext('2d')!;
+      cv.width = vp.width; cv.height = vp.height;
+      cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+      await pg.render({ canvasContext: cx, viewport: vp }).promise;
+      setCache(prev => ({ ...prev, [n]: cv.toDataURL('image/png') }));
+    } catch (e) { console.error(e); }
+    finally { setBusy(false); }
+  }, [cache]);
 
-  /* render current page whenever it changes */
-  useEffect(() => {
-    if (pdfDocRef.current) renderPage(currentPage);
-  }, [currentPage, renderPage]);
+  useEffect(() => { if (pdfDocRef.current) renderPage(page); }, [page, renderPage]);
+  useEffect(() => { if (editingId) setTimeout(() => editInputRef.current?.focus(), 20); }, [editingId]);
 
-  /* focus popup */
-  useEffect(() => {
-    if (popup) setTimeout(() => popupInputRef.current?.focus(), 30);
-  }, [popup]);
-
-  /* ── file upload ───────────────────────────────────────────────────────── */
+  /* ── load file ───────────────────────────────────────────────────────── */
   const handleFile = async (f: File) => {
-    if (!f.name.toLowerCase().endsWith('.pdf')) { setError('Please upload a PDF file.'); return; }
-    setFile(f);
-    setAnnotations([]);
-    setPageCache({});
-    setCurrentPage(1);
-    setError('');
-    pdfDocRef.current = null;
-    setLoadingInfo(true);
+    if (!f.name.toLowerCase().endsWith('.pdf')) { setError('Upload a PDF file.'); return; }
+    setFile(f); setAnns([]); setCache({}); setPage(1); setError('');
+    pdfDocRef.current = null; setEditingId(null);
+    setBusy(true);
     try {
-      const pdfjsLib = await getPdfjsLib();
-      const arrayBuf = await f.arrayBuffer();
-      const pdfDoc   = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuf) }).promise;
-      pdfDocRef.current = pdfDoc;
-
-      /* get page dimensions from page 1 at scale=1 */
-      const page1    = await pdfDoc.getPage(1);
-      const vp1      = page1.getViewport({ scale: 1 });
-      const info: PdfInfo = {
-        pageCount: pdfDoc.numPages,
-        width:     vp1.width,
-        height:    vp1.height,
-      };
-      setPdfInfo(info);
-
+      const lib  = await pdfjs();
+      const buf  = await f.arrayBuffer();
+      const doc  = await lib.getDocument({ data: new Uint8Array(buf) }).promise;
+      pdfDocRef.current = doc;
+      const pg1  = await doc.getPage(1);
+      const vp1  = pg1.getViewport({ scale: 1 });
+      setPdfInfo({ pageCount: doc.numPages, width: vp1.width, height: vp1.height });
       /* render page 1 immediately */
-      const viewport  = page1.getViewport({ scale: 1.5 });
-      const canvas    = document.createElement('canvas');
-      const ctx       = canvas.getContext('2d')!;
-      canvas.width    = viewport.width;
-      canvas.height   = viewport.height;
-      ctx.fillStyle   = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      await page1.render({ canvasContext: ctx, viewport }).promise;
-      setPageCache({ 1: canvas.toDataURL('image/png') });
-    } catch (e) {
-      setError((e as Error).message);
-      setFile(null);
-    } finally {
-      setLoadingInfo(false);
-    }
+      const vp   = pg1.getViewport({ scale: 1.5 });
+      const cv   = document.createElement('canvas');
+      const cx   = cv.getContext('2d')!;
+      cv.width = vp.width; cv.height = vp.height;
+      cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+      await pg1.render({ canvasContext: cx, viewport: vp }).promise;
+      setCache({ 1: cv.toDataURL('image/png') });
+    } catch (e) { setError((e as Error).message); setFile(null); }
+    finally { setBusy(false); }
   };
 
-  /* ── canvas pointer helpers ────────────────────────────────────────────── */
-  const getRelPos = (e: React.MouseEvent) => {
-    const rect = imgRef.current!.getBoundingClientRect();
+  /* ── helper: fractional pos from mouse event ─────────────────────────── */
+  const relPos = (e: React.MouseEvent): { fx: number; fy: number } => {
+    const r = imgRef.current!.getBoundingClientRect();
     return {
-      fx: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
-      fy: Math.max(0, Math.min(1, (e.clientY - rect.top)  / rect.height)),
+      fx: Math.max(0, Math.min(1, (e.clientX - r.left)  / r.width)),
+      fy: Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)),
     };
   };
 
-  /* ── text mode: click → popup ──────────────────────────────────────────── */
+  /* ────────────────── text mode: click on empty canvas ──────────────────
+   * Creates a new annotation and immediately opens it for inline editing. */
   const handleImgClick = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (!pdfInfo || mode !== 'text') return;
-    const { fx, fy } = getRelPos(e);
-    setPopup({
+    if (mode !== 'text' || dragId) return;
+    const { fx, fy } = relPos(e);
+    if (!pdfInfo) return;
+    const id = uid();
+    const newAnn: TextAnn = {
+      id, type: 'text', page,
       fx, fy,
       x: Math.round(fx * pdfInfo.width),
-      y: Math.round((1 - fy) * pdfInfo.height),  // pdf-lib bottom-left
-    });
-    setPopupText('');
-  };
-
-  const confirmText = () => {
-    if (!popup || !popupText.trim()) { setPopup(null); return; }
-    const ann: TextAnn = {
-      id: `${Date.now()}-${Math.random()}`,
-      type: 'text', page: currentPage,
-      x: popup.x, y: popup.y, fx: popup.fx, fy: popup.fy,
-      text: popupText.trim(), fontSize, fontColor, opacity,
+      y: Math.round((1 - fy) * pdfInfo.height),
+      text: '', fontSize, fontColor, opacity,
     };
-    setAnnotations(prev => [...prev, ann]);
-    setPopup(null);
-    setPopupText('');
+    setAnns(prev => [...prev, newAnn]);
+    setEditingId(id);
+    setEditText('');
   };
 
-  /* ── erase mode: drag ──────────────────────────────────────────────────── */
-  const handleMouseDown = (e: React.MouseEvent<HTMLImageElement>) => {
+  /* commit inline edit */
+  const commitEdit = () => {
+    if (!editingId) return;
+    if (!editText.trim()) {
+      setAnns(prev => prev.filter(a => a.id !== editingId));   // empty → remove
+    } else {
+      setAnns(prev => prev.map(a =>
+        a.id === editingId ? { ...a, text: editText } : a
+      ));
+    }
+    setEditingId(null);
+    setEditText('');
+  };
+
+  /* double-click existing annotation → re-edit */
+  const handleAnnDblClick = (e: React.MouseEvent, ann: TextAnn) => {
+    e.stopPropagation();
+    setEditingId(ann.id);
+    setEditText(ann.text);
+  };
+
+  /* ─────────────────── drag text annotation ─────────────────────────────
+   * mousedown on a text label → start drag (if not clicking to edit)      */
+  const handleAnnMouseDown = (e: React.MouseEvent, ann: TextAnn) => {
+    if (editingId === ann.id) return;   // let the input handle it
+    e.stopPropagation(); e.preventDefault();
+    const r = imgRef.current!.getBoundingClientRect();
+    const clickFx = (e.clientX - r.left) / r.width;
+    const clickFy = (e.clientY - r.top)  / r.height;
+    dragOffset.current = { dx: clickFx - ann.fx, dy: clickFy - ann.fy };
+    setDragId(ann.id);
+  };
+
+  /* ─────────────────── container-level mouse events ─────────────────────
+   * Handles BOTH dragging text AND drawing erase rect.                     */
+  const handleWrapMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!imgRef.current || !pdfInfo) return;
+    const r = imgRef.current.getBoundingClientRect();
+    const fx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const fy = Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height));
+
+    if (dragId) {
+      const newFx = Math.max(0, Math.min(0.98, fx - dragOffset.current.dx));
+      const newFy = Math.max(0, Math.min(0.98, fy - dragOffset.current.dy));
+      setAnns(prev => prev.map(a => {
+        if (a.id !== dragId || a.type !== 'text') return a;
+        return {
+          ...a,
+          fx: newFx, fy: newFy,
+          x:  Math.round(newFx * pdfInfo.width),
+          y:  Math.round((1 - newFy) * pdfInfo.height),
+        };
+      }));
+    }
+
+    if (mode === 'erase' && eraseStart) {
+      setEraseDrag({ fx, fy });
+    }
+  };
+
+  const handleWrapMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    /* finish drag */
+    if (dragId) { setDragId(null); return; }
+
+    /* finish erase draw */
+    if (mode === 'erase' && eraseStart && pdfInfo) {
+      const r  = imgRef.current!.getBoundingClientRect();
+      const fx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      const fy = Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height));
+      const fx1 = Math.min(eraseStart.fx, fx);
+      const fy1 = Math.min(eraseStart.fy, fy);
+      const fw  = Math.abs(fx - eraseStart.fx);
+      const fh  = Math.abs(fy - eraseStart.fy);
+      if (fw >= 0.005 && fh >= 0.005) {
+        setAnns(prev => [...prev, {
+          id: uid(), type: 'erase', page,
+          fx: fx1, fy: fy1, fw, fh,
+          x:      Math.round(fx1 * pdfInfo.width),
+          y:      Math.round((1 - (fy1 + fh)) * pdfInfo.height),
+          width:  Math.round(fw * pdfInfo.width),
+          height: Math.round(fh * pdfInfo.height),
+        }]);
+      }
+      setEraseStart(null);
+      setEraseDrag(null);
+    }
+  };
+
+  /* ─────────────────── erase: mousedown on img ───────────────────────── */
+  const handleImgMouseDown = (e: React.MouseEvent<HTMLImageElement>) => {
     if (mode !== 'erase') return;
     e.preventDefault();
-    setEraseStart(getRelPos(e));
-    setEraseDrag(getRelPos(e));
+    const pos = relPos(e);
+    setEraseStart(pos); setEraseDrag(pos);
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (mode !== 'erase' || !eraseStart) return;
-    setEraseDrag(getRelPos(e));
-  };
-
-  const handleMouseUp = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (mode !== 'erase' || !eraseStart || !pdfInfo) return;
-    const end = getRelPos(e);
-    const fx1 = Math.min(eraseStart.fx, end.fx);
-    const fy1 = Math.min(eraseStart.fy, end.fy);
-    const fw  = Math.abs(end.fx - eraseStart.fx);
-    const fh  = Math.abs(end.fy - eraseStart.fy);
-    if (fw < 0.005 || fh < 0.005) { setEraseStart(null); setEraseDrag(null); return; }
-    const ann: EraseAnn = {
-      id: `${Date.now()}-${Math.random()}`,
-      type: 'erase', page: currentPage,
-      x:      Math.round(fx1 * pdfInfo.width),
-      y:      Math.round((1 - (fy1 + fh)) * pdfInfo.height),
-      width:  Math.round(fw * pdfInfo.width),
-      height: Math.round(fh * pdfInfo.height),
-      fx: fx1, fy: fy1, fw, fh,
-    };
-    setAnnotations(prev => [...prev, ann]);
-    setEraseStart(null);
-    setEraseDrag(null);
-  };
-
-  const dragRect = eraseStart && eraseDrag ? {
-    left:   `${Math.min(eraseStart.fx, eraseDrag.fx) * 100}%`,
-    top:    `${Math.min(eraseStart.fy, eraseDrag.fy) * 100}%`,
-    width:  `${Math.abs(eraseDrag.fx - eraseStart.fx) * 100}%`,
-    height: `${Math.abs(eraseDrag.fy - eraseStart.fy) * 100}%`,
-  } : null;
-
-  /* ── download ──────────────────────────────────────────────────────────── */
-  const handleDownload = async () => {
-    if (!file || annotations.length === 0) return;
-    setDownloading(true);
-    setError('');
+  /* ─────────────────── download ───────────────────────────────────────── */
+  const download = async () => {
+    if (!file || anns.length === 0) return;
+    setDl(true); setError('');
     try {
-      const elements = annotations.map(a => {
-        if (a.type === 'erase') {
-          return { type: 'erase', page: a.page, x: a.x, y: a.y,
-                   width: (a as EraseAnn).width, height: (a as EraseAnn).height };
-        }
+      const elements = anns.map(a => {
+        if (a.type === 'erase') return { type:'erase', page:a.page, x:a.x, y:a.y, width:a.width, height:a.height };
         const t = a as TextAnn;
-        return { type: 'text', text: t.text, page: t.page, x: t.x, y: t.y,
-                 font_size: t.fontSize, font_color: t.fontColor,
-                 opacity: t.opacity, rotation: 0 };
+        return { type:'text', text:t.text, page:t.page, x:t.x, y:t.y,
+                 font_size:t.fontSize, font_color:t.fontColor, opacity:t.opacity, rotation:0 };
       });
       const fd = new FormData();
       fd.append('file', file);
       fd.append('elements', JSON.stringify(elements));
-      const res = await fetch(`${API_BASE}/pdf/edit-pdf`, {
-        method: 'POST', headers: authHeaders(), body: fd,
-      });
+      const res = await fetch(`${API_BASE}/pdf/edit-pdf`, { method:'POST', headers:authHdrs(), body:fd });
       if (!res.ok) throw new Error(await res.text());
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url; a.download = file.name.replace(/\.[^.]+$/, '') + '_edited.pdf';
-      a.click();
-      URL.revokeObjectURL(url);
+      a.click(); URL.revokeObjectURL(url);
     } catch (e) { setError((e as Error).message); }
-    finally { setDownloading(false); }
+    finally { setDl(false); }
   };
 
-  /* ── drop zone ─────────────────────────────────────────────────────────── */
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setDropDrag(false);
-    const f = e.dataTransfer.files[0];
-    if (f) handleFile(f);
-  };
-
-  /* ─── Upload screen ─────────────────────────────────────────────────────── */
-  if (!file || !pdfInfo) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <div className="bg-white border-b px-6 py-4 flex items-center gap-3 shadow-sm">
-          <Link href="/" className="text-gray-400 hover:text-gray-600 text-sm font-medium">← Back</Link>
-          <span className="text-gray-300">|</span>
-          <h1 className="text-lg font-bold text-gray-800">Edit PDF</h1>
-          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full ml-1">
-            Add text · Erase content
-          </span>
-        </div>
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div
-            onDrop={onDrop}
-            onDragOver={e => { e.preventDefault(); setDropDrag(true); }}
-            onDragLeave={() => setDropDrag(false)}
-            onClick={() => fileInputRef.current?.click()}
-            className={`w-full max-w-lg border-2 border-dashed rounded-2xl p-16 flex flex-col items-center gap-4 cursor-pointer transition-all bg-white
-              ${dropDrag ? 'border-blue-500 bg-blue-50 scale-[1.02]' : 'border-blue-200 hover:border-blue-400 hover:bg-blue-50'}`}
-          >
-            <div className="text-7xl">📄</div>
-            <div className="text-center">
-              <p className="text-xl font-bold text-gray-700">
-                {loadingInfo ? 'Loading PDF…' : 'Click or drag a PDF here'}
-              </p>
-              <p className="text-sm text-gray-400 mt-1">
-                Add text anywhere · Erase / remove existing content
-              </p>
-            </div>
-            {error && <p className="text-red-500 text-sm bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
-            <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-            <div className="flex gap-3 mt-2 flex-wrap justify-center">
-              {['✏️ Add Text','⬜ Erase','⬇️ Download'].map(s => (
-                <span key={s} className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">{s}</span>
-              ))}
-            </div>
+  /* ─────────────────── upload screen ─────────────────────────────────── */
+  if (!file || !pdfInfo) return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="bg-white border-b px-6 py-4 flex items-center gap-3 shadow-sm">
+        <Link href="/" className="text-gray-400 hover:text-gray-600 text-sm font-medium">← Back</Link>
+        <span className="text-gray-300">|</span>
+        <h1 className="text-lg font-bold text-gray-800">Edit PDF</h1>
+      </div>
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div
+          onDrop={e => { e.preventDefault(); setDropDrag(false); const f=e.dataTransfer.files[0]; if(f) handleFile(f); }}
+          onDragOver={e => { e.preventDefault(); setDropDrag(true); }}
+          onDragLeave={() => setDropDrag(false)}
+          onClick={() => fileInputRef.current?.click()}
+          className={`w-full max-w-lg border-2 border-dashed rounded-2xl p-16 flex flex-col items-center gap-4 cursor-pointer transition-all bg-white
+            ${dropDrag ? 'border-blue-500 bg-blue-50 scale-[1.02]' : 'border-blue-200 hover:border-blue-400 hover:bg-blue-50'}`}
+        >
+          <div className="text-7xl">📄</div>
+          <div className="text-center">
+            <p className="text-xl font-bold text-gray-700">{busy ? 'Loading PDF…' : 'Click or drag a PDF here'}</p>
+            <p className="text-sm text-gray-400 mt-1">Add text anywhere · Drag to reposition · Erase content</p>
           </div>
+          {error && <p className="text-red-500 text-sm bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
+          <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
+            onChange={e => { const f=e.target.files?.[0]; if(f) handleFile(f); }} />
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 
-  const currentAnns  = annotations.filter(a => a.page === currentPage);
-  const currentImage = pageCache[currentPage];
-  const editCount    = annotations.length;
+  const curAnns = anns.filter(a => a.page === page);
+  const img     = cache[page];
+  const total   = anns.length;
 
-  /* ─── Editor screen ─────────────────────────────────────────────────────── */
+  /* live erase rect */
+  const eraseRect = eraseStart && eraseDrag ? {
+    left:   `${Math.min(eraseStart.fx, eraseDrag.fx)*100}%`,
+    top:    `${Math.min(eraseStart.fy, eraseDrag.fy)*100}%`,
+    width:  `${Math.abs(eraseDrag.fx - eraseStart.fx)*100}%`,
+    height: `${Math.abs(eraseDrag.fy - eraseStart.fy)*100}%`,
+  } : null;
+
+  /* ─────────────────── editor screen ─────────────────────────────────── */
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-100">
 
-      {/* ── Top toolbar ── */}
-      <div className="bg-white border-b px-4 py-2 flex items-center gap-2 flex-wrap shrink-0 z-20 shadow-sm">
-        <Link href="/" className="text-gray-400 hover:text-gray-600 text-sm shrink-0 mr-1">← Back</Link>
+      {/* ── toolbar ── */}
+      <div className="bg-white border-b px-4 py-2 flex items-center gap-2 flex-wrap shrink-0 shadow-sm">
+        <Link href="/" className="text-gray-400 hover:text-gray-600 text-sm mr-1">← Back</Link>
 
-        {/* Mode buttons */}
+        {/* mode */}
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           <button onClick={() => setMode('text')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              mode === 'text' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode==='text' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
             ✏️ Add Text
           </button>
           <button onClick={() => setMode('erase')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              mode === 'erase' ? 'bg-red-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode==='erase' ? 'bg-red-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
             ⬜ Erase
           </button>
         </div>
 
-        {/* Text options */}
+        {/* text options */}
         {mode === 'text' && (
-          <div className="flex items-center gap-2 ml-2">
+          <div className="flex items-center gap-2 ml-1 flex-wrap">
             <label className="text-xs text-gray-500">Size</label>
             <input type="number" value={fontSize} min={6} max={96}
-              onChange={e => setFontSize(Number(e.target.value))}
-              className="w-14 border border-gray-200 rounded-md px-2 py-1 text-sm text-center bg-gray-50" />
+              onChange={e => { const v=Number(e.target.value); setFontSize(v);
+                if(editingId) setAnns(p=>p.map(a=>a.id===editingId?{...a,fontSize:v}:a)); }}
+              className="w-14 border border-gray-200 rounded-md px-2 py-1 text-sm text-center bg-gray-50"/>
             <label className="text-xs text-gray-500">Color</label>
             <input type="color" value={fontColor}
-              onChange={e => setFontColor(e.target.value)}
-              className="w-8 h-8 rounded-md cursor-pointer border border-gray-200 p-0.5 bg-gray-50" />
+              onChange={e => { setFontColor(e.target.value);
+                if(editingId) setAnns(p=>p.map(a=>a.id===editingId?{...a,fontColor:e.target.value}:a)); }}
+              className="w-8 h-8 rounded-md cursor-pointer border border-gray-200 p-0.5 bg-gray-50"/>
             <label className="text-xs text-gray-500">Opacity%</label>
             <input type="number" value={opacity} min={10} max={100}
               onChange={e => setOpacity(Number(e.target.value))}
-              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-sm text-center bg-gray-50" />
+              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-sm text-center bg-gray-50"/>
           </div>
         )}
         {mode === 'erase' && (
-          <span className="text-xs text-red-500 bg-red-50 px-3 py-1 rounded-full ml-2 font-medium">
-            Click &amp; drag on the PDF to erase
+          <span className="text-xs text-red-500 bg-red-50 px-3 py-1 rounded-full ml-1 font-medium">
+            Drag on the PDF to erase content
+          </span>
+        )}
+        {mode === 'text' && (
+          <span className="text-xs text-blue-500 bg-blue-50 px-3 py-1 rounded-full ml-1 font-medium">
+            Click to add · Drag to move · Double-click to edit
           </span>
         )}
 
-        <span className="text-xs text-gray-400 truncate max-w-[140px] ml-1 hidden sm:block">{file.name}</span>
+        <span className="text-xs text-gray-400 truncate max-w-[130px] ml-1 hidden sm:block">{file.name}</span>
 
-        <button onClick={handleDownload} disabled={downloading || editCount === 0}
-          className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm">
-          {downloading ? '⏳ Saving…' : `⬇ Download${editCount > 0 ? ` (${editCount})` : ''}`}
+        <button onClick={download} disabled={downloading || total===0}
+          className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm">
+          {downloading ? '⏳ Saving…' : `⬇ Download${total>0?` (${total})`:''}` }
         </button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 text-red-600 px-4 py-2 text-sm shrink-0 border-b border-red-100">
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <div className="bg-red-50 text-red-600 px-4 py-2 text-sm border-b border-red-100">⚠️ {error}</div>}
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Left: page strip ── */}
+        {/* page strip */}
         <div className="w-20 bg-white border-r flex flex-col items-center py-3 gap-2 overflow-y-auto shrink-0">
-          {Array.from({ length: pdfInfo.pageCount }, (_, i) => i + 1).map(p => (
-            <button key={p} onClick={() => setCurrentPage(p)}
+          {Array.from({ length: pdfInfo.pageCount }, (_,i) => i+1).map(p => (
+            <button key={p} onClick={() => setPage(p)}
               className={`w-14 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
-                p === currentPage
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-100 text-gray-400 hover:border-blue-200'
-              }`}>
+                p===page ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 text-gray-400 hover:border-blue-200'}`}>
               {p}
-              {annotations.some(a => a.page === p) && (
-                <span className="block w-1.5 h-1.5 rounded-full bg-blue-500 mx-auto mt-1" />
-              )}
+              {anns.some(a=>a.page===p) && <span className="block w-1.5 h-1.5 rounded-full bg-blue-500 mx-auto mt-1"/>}
             </button>
           ))}
         </div>
 
-        {/* ── Center: PDF canvas ── */}
-        <div className="flex-1 overflow-auto flex justify-center items-start p-6 bg-gray-100">
-          <div className="relative shadow-2xl rounded-sm" style={{ userSelect: 'none' }}>
+        {/* ── PDF canvas wrapper ──────────────────────────────────────────
+         *  onMouseMove + onMouseUp live here so drag / erase work even
+         *  when the cursor leaves the img bounds.                          */}
+        <div className="flex-1 overflow-auto flex justify-center items-start p-6 bg-gray-100"
+          onMouseMove={handleWrapMouseMove}
+          onMouseUp={handleWrapMouseUp}
+          onMouseLeave={() => { setDragId(null); setEraseStart(null); setEraseDrag(null); }}
+        >
+          <div ref={canvasWrapRef} className="relative shadow-2xl rounded-sm select-none">
 
-            {!currentImage || loadingPage ? (
+            {/* PDF page image */}
+            {!img || busy ? (
               <div className="w-[595px] h-[842px] bg-white border border-gray-200 flex items-center justify-center rounded">
                 <div className="text-center">
                   <svg className="animate-spin h-8 w-8 text-blue-500 mx-auto mb-2" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
                   </svg>
-                  <span className="text-gray-400 text-sm">Rendering page {currentPage}…</span>
+                  <span className="text-gray-400 text-sm">Rendering page {page}…</span>
                 </div>
               </div>
             ) : (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 ref={imgRef}
-                src={currentImage}
-                alt={`Page ${currentPage}`}
-                onClick={mode === 'text' ? handleImgClick : undefined}
-                onMouseDown={mode === 'erase' ? handleMouseDown : undefined}
-                onMouseMove={mode === 'erase' ? handleMouseMove : undefined}
-                onMouseUp={mode === 'erase' ? handleMouseUp : undefined}
+                src={img}
+                alt={`Page ${page}`}
                 draggable={false}
+                onClick={handleImgClick}
+                onMouseDown={handleImgMouseDown}
                 className="block max-w-[780px] w-full rounded border border-gray-200"
-                style={{ cursor: mode === 'erase' ? 'crosshair' : 'text' }}
+                style={{ cursor: mode==='erase' ? 'crosshair' : 'text', display:'block' }}
               />
             )}
 
-            {/* Annotation overlays */}
-            {currentImage && currentAnns.map(ann => {
-              if (ann.type === 'text') {
-                const t = ann as TextAnn;
-                return (
-                  <div key={t.id} className="absolute pointer-events-none"
-                    style={{ left: `${t.fx * 100}%`, top: `${t.fy * 100}%`, transform: 'translate(-2px, -100%)' }}>
-                    <div className="text-xs rounded px-1.5 py-0.5 whitespace-nowrap max-w-[200px] truncate shadow-sm border border-white/30 font-medium"
-                      style={{ background: t.fontColor, color: '#fff', fontSize: `${Math.min(t.fontSize, 14)}px`, opacity: t.opacity / 100 }}>
-                      {t.text}
-                    </div>
-                  </div>
-                );
-              }
+            {/* ── annotation overlays ── */}
+            {img && curAnns.map(ann => {
+
+              /* ── erase annotation ── */
               if (ann.type === 'erase') {
-                const er = ann as EraseAnn;
                 return (
-                  <div key={er.id} className="absolute pointer-events-none"
-                    style={{
-                      left: `${er.fx * 100}%`, top: `${er.fy * 100}%`,
-                      width: `${er.fw * 100}%`, height: `${er.fh * 100}%`,
-                      background: 'rgba(255,255,255,0.85)',
-                      border: '2px dashed #ef4444', boxSizing: 'border-box',
-                    }}>
+                  <div key={ann.id} className="absolute group"
+                    style={{ left:`${ann.fx*100}%`, top:`${ann.fy*100}%`,
+                             width:`${ann.fw*100}%`, height:`${ann.fh*100}%`,
+                             background:'rgba(255,255,255,0.85)',
+                             border:'2px dashed #ef4444', boxSizing:'border-box', pointerEvents:'auto', cursor:'default' }}>
                     <span className="absolute top-0.5 left-1 text-[9px] text-red-400 font-bold">ERASED</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setAnns(p=>p.filter(a=>a.id!==ann.id)); }}
+                      className="absolute -top-2.5 -right-2.5 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] font-bold leading-none hidden group-hover:flex items-center justify-center shadow"
+                    >×</button>
                   </div>
                 );
               }
-              return null;
+
+              /* ── text annotation ── */
+              const t = ann as TextAnn;
+              const isEditing  = editingId === t.id;
+              const isDragging = dragId    === t.id;
+
+              return (
+                <div
+                  key={t.id}
+                  className="absolute group"
+                  style={{
+                    left:        `${t.fx * 100}%`,
+                    top:         `${t.fy * 100}%`,
+                    pointerEvents: 'auto',
+                    cursor:      isEditing ? 'text' : isDragging ? 'grabbing' : 'grab',
+                    zIndex:      isEditing || isDragging ? 40 : 20,
+                    minWidth:    '40px',
+                    maxWidth:    '320px',
+                  }}
+                  onMouseDown={e => handleAnnMouseDown(e, t)}
+                  onDoubleClick={e => handleAnnDblClick(e, t)}
+                >
+                  {isEditing ? (
+                    /* inline input */
+                    <input
+                      ref={editInputRef}
+                      type="text"
+                      value={editText}
+                      onChange={e => setEditText(e.target.value)}
+                      onBlur={commitEdit}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+                        if (e.key === 'Escape') { setAnns(p=>p.filter(a=>a.id!==t.id)); setEditingId(null); }
+                      }}
+                      placeholder="Type here…"
+                      className="outline-none bg-transparent border-b-2 border-blue-500 whitespace-nowrap"
+                      style={{
+                        fontSize:   `${t.fontSize}px`,
+                        color:       t.fontColor,
+                        opacity:     t.opacity / 100,
+                        minWidth:    '80px',
+                        width:       `${Math.max(80, editText.length * t.fontSize * 0.55)}px`,
+                        fontFamily:  'Arial, sans-serif',
+                        lineHeight:  1.2,
+                      }}
+                      onClick={e => e.stopPropagation()}
+                    />
+                  ) : (
+                    /* text label */
+                    <div
+                      className="relative whitespace-nowrap rounded"
+                      style={{
+                        fontSize:   `${t.fontSize}px`,
+                        color:       t.fontColor,
+                        opacity:     t.opacity / 100,
+                        fontFamily:  'Arial, sans-serif',
+                        lineHeight:  1.2,
+                        padding:     '1px 2px',
+                        border:      '1.5px solid transparent',
+                        transition:  'border-color 0.15s',
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = t.fontColor + '88'; }}
+                      onMouseLeave={e => { if (dragId !== t.id) (e.currentTarget as HTMLElement).style.borderColor = 'transparent'; }}
+                    >
+                      {t.text}
+                      {/* delete button */}
+                      <button
+                        onMouseDown={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); setAnns(p=>p.filter(a=>a.id!==t.id)); }}
+                        className="absolute -top-2.5 -right-2.5 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] font-bold leading-none hidden group-hover:flex items-center justify-center shadow z-50"
+                      >×</button>
+                    </div>
+                  )}
+                </div>
+              );
             })}
 
-            {/* Live erase drag rect */}
-            {dragRect && (
+            {/* live erase selection */}
+            {eraseRect && (
               <div className="absolute pointer-events-none"
-                style={{ ...dragRect, background: 'rgba(239,68,68,0.12)', border: '2px dashed #ef4444', boxSizing: 'border-box' }}
+                style={{ ...eraseRect, background:'rgba(239,68,68,0.1)', border:'2px dashed #ef4444', boxSizing:'border-box' }}
               />
-            )}
-
-            {/* Text popup */}
-            {popup && (
-              <div className="absolute z-30"
-                style={{ left: `${Math.min(popup.fx * 100, 62)}%`, top: `${Math.min(popup.fy * 100, 82)}%`, transform: 'translate(8px, -50%)' }}>
-                <div className="bg-white border-2 border-blue-400 rounded-xl shadow-2xl p-3 flex flex-col gap-2 w-60">
-                  <p className="text-xs font-semibold text-blue-600">Add text at this position</p>
-                  <input ref={popupInputRef} type="text" value={popupText}
-                    onChange={e => setPopupText(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') confirmText(); if (e.key === 'Escape') setPopup(null); }}
-                    placeholder="Type your text…"
-                    className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-300" />
-                  <div className="flex gap-2">
-                    <button onClick={confirmText}
-                      className="flex-1 bg-blue-600 text-white text-xs font-bold rounded-lg px-3 py-1.5 hover:bg-blue-700 transition-colors">
-                      ✓ Add
-                    </button>
-                    <button onClick={() => setPopup(null)}
-                      className="flex-1 border border-gray-200 text-xs rounded-lg px-3 py-1.5 hover:bg-gray-50 text-gray-500">
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
             )}
           </div>
         </div>
 
-        {/* ── Right: annotations panel ── */}
-        <div className="w-64 bg-white border-l flex flex-col shrink-0 overflow-hidden">
-          <div className="px-4 py-3 border-b shrink-0">
+        {/* right panel */}
+        <div className="w-60 bg-white border-l flex flex-col shrink-0 overflow-hidden">
+          <div className="px-4 py-3 border-b">
             <h3 className="font-bold text-sm text-gray-700">
-              Edits
-              <span className="ml-1.5 text-xs font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{editCount}</span>
+              Edits <span className="ml-1 text-xs font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{total}</span>
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              {mode === 'text' ? '✏️ Click on the PDF to add text' : '⬜ Drag on the PDF to erase'}
+              {mode==='text' ? '✏️ Click on PDF · Drag to move' : '⬜ Drag to select erase area'}
             </p>
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
-            {editCount === 0 ? (
+            {total === 0 ? (
               <div className="text-center mt-10 px-4">
-                <p className="text-2xl mb-2">✏️</p>
+                <p className="text-3xl mb-2">✏️</p>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  No edits yet.<br />
-                  Use <b className="text-gray-500">Add Text</b> to insert or <b className="text-gray-500">Erase</b> to remove content.
+                  No edits yet.<br/>Click on the PDF to add text.<br/>Drag text to reposition it.
                 </p>
               </div>
-            ) : (
-              annotations.map(ann => (
-                <div key={ann.id} onClick={() => setCurrentPage(ann.page)}
-                  className={`border rounded-lg p-2 text-xs cursor-pointer transition-all hover:shadow-sm ${
-                    ann.page === currentPage
-                      ? ann.type === 'erase' ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50'
-                      : 'border-gray-100 hover:border-gray-200'
-                  }`}>
-                  <div className="flex items-start gap-1.5">
-                    <span className={`text-base mt-0.5 shrink-0 ${ann.type === 'erase' ? 'text-red-400' : 'text-blue-400'}`}>
-                      {ann.type === 'erase' ? '⬜' : '✏️'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      {ann.type === 'text' && (
-                        <>
-                          <p className="font-semibold text-gray-800 truncate">"{(ann as TextAnn).text}"</p>
-                          <p className="text-gray-400 mt-0.5">Pg {ann.page} · {(ann as TextAnn).fontSize}pt</p>
-                        </>
-                      )}
-                      {ann.type === 'erase' && (
-                        <>
-                          <p className="font-semibold text-red-700">Erase area</p>
-                          <p className="text-gray-400 mt-0.5">Pg {ann.page} · {(ann as EraseAnn).width}×{(ann as EraseAnn).height}pt</p>
-                        </>
-                      )}
-                    </div>
-                    <button onClick={e => { e.stopPropagation(); setAnnotations(prev => prev.filter(a => a.id !== ann.id)); }}
-                      className="text-gray-300 hover:text-red-500 text-base leading-none shrink-0 transition-colors">×</button>
+            ) : anns.map(ann => (
+              <div key={ann.id}
+                onClick={() => { setPage(ann.page); }}
+                className={`border rounded-lg p-2 text-xs cursor-pointer transition-all ${
+                  ann.page===page
+                    ? ann.type==='erase' ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50'
+                    : 'border-gray-100 hover:border-gray-200'
+                }`}>
+                <div className="flex items-start gap-1.5">
+                  <span className={`text-sm mt-0.5 shrink-0 ${ann.type==='erase'?'text-red-400':'text-blue-400'}`}>
+                    {ann.type==='erase'?'⬜':'✏️'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    {ann.type==='text' && (
+                      <>
+                        <p className="font-semibold text-gray-800 truncate">"{(ann as TextAnn).text}"</p>
+                        <p className="text-gray-400 mt-0.5">Pg {ann.page} · {(ann as TextAnn).fontSize}pt</p>
+                      </>
+                    )}
+                    {ann.type==='erase' && (
+                      <>
+                        <p className="font-semibold text-red-700">Erase area</p>
+                        <p className="text-gray-400 mt-0.5">Pg {ann.page}</p>
+                      </>
+                    )}
                   </div>
+                  <button
+                    onClick={e => { e.stopPropagation(); setAnns(p=>p.filter(a=>a.id!==ann.id)); }}
+                    className="text-gray-300 hover:text-red-500 text-base leading-none shrink-0">×</button>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
 
-          {editCount > 0 && (
-            <div className="px-4 py-3 border-t bg-gray-50 shrink-0">
-              <button onClick={handleDownload} disabled={downloading}
-                className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          {total > 0 && (
+            <div className="px-4 py-3 border-t bg-gray-50">
+              <button onClick={download} disabled={downloading}
+                className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {downloading ? '⏳ Saving…' : '⬇ Download PDF'}
               </button>
             </div>
           )}
         </div>
+
       </div>
     </div>
   );
