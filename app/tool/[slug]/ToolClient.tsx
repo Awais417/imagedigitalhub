@@ -267,10 +267,23 @@ export default function ToolClient({ slug }: { slug: string }) {
       const blob = await apiPostBlob(tool.apiEndpoint, formData);
       const url  = URL.createObjectURL(blob);
       setDownloadUrl(url);
-      // Keep the original filename, only change the extension to the output format's extension
-      const outExt  = tool.outputFormat.includes('.') ? tool.outputFormat.split('.').pop()! : tool.outputFormat;
+      // Detect actual extension from blob MIME type so e.g. split returns .pdf or .zip correctly
+      const mimeToExt: Record<string, string> = {
+        'application/pdf':  'pdf',
+        'application/zip':  'zip',
+        'application/json': 'json',
+        'text/plain':       'txt',
+        'text/html':        'html',
+        'text/csv':         'csv',
+        'text/xml':         'xml',
+        'image/png':        'png',
+        'image/jpeg':       'jpg',
+        'image/webp':       'webp',
+      };
+      const detectedExt = mimeToExt[blob.type.split(';')[0].trim()] ??
+        (tool.outputFormat.includes('.') ? tool.outputFormat.split('.').pop()! : tool.outputFormat);
       const origBase = (files[0]?.name ?? '').replace(/\.[^.]+$/, '') || 'output';
-      setDownloadName(`${origBase}.${outExt}`);
+      setDownloadName(`${origBase}.${detectedExt}`);
 
       if (user) {
         const originalFileName = files[0]?.name ?? '';
