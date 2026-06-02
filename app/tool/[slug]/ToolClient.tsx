@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Swal from 'sweetalert2';
-import JSZip from 'jszip';
 import { TOOLS } from '../../lib/tools';
 import { useAuth } from '../../context/AuthContext';
 import { apiPostBlob, saveConversion } from '../../lib/api';
@@ -267,65 +266,6 @@ export default function ToolClient({ slug }: { slug: string }) {
       });
 
       const blob = await apiPostBlob(tool.apiEndpoint, formData);
-
-      // ── PDF to Image: multi-page ZIP → save into a folder using File System Access API ──
-      const isZip = blob.type.includes('zip') || blob.type.includes('octet-stream');
-      if (tool.slug === 'pdf-to-image' && isZip) {
-        const zip      = await JSZip.loadAsync(await blob.arrayBuffer());
-        const entries  = Object.values(zip.files).filter(f => !f.dir);
-        const origBase = (files[0]?.name ?? '').replace(/\.[^.]+$/, '') || 'document';
-
-        if (entries.length > 0 && 'showDirectoryPicker' in window) {
-          // ── Modern path: File System Access API → real folder on disk ──
-          try {
-            const dirHandle = await (window as any).showDirectoryPicker({
-              suggestedName: `${origBase}_images`,
-              mode: 'readwrite',
-            });
-            for (let i = 0; i < entries.length; i++) {
-              const entry    = entries[i];
-              const imgBuf   = await entry.async('arraybuffer');
-              const ext      = entry.name.split('.').pop() ?? 'jpg';
-              const filename = entries.length === 1
-                ? `${origBase}.${ext}`
-                : `${origBase}_page${String(i + 1).padStart(3, '0')}.${ext}`;
-              const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
-              const writable   = await fileHandle.createWritable();
-              await writable.write(imgBuf);
-              await writable.close();
-            }
-            setDownloadUrl('done');
-            setDownloadName(`${origBase}_images folder — ${entries.length} image${entries.length === 1 ? '' : 's'} saved`);
-          } catch (e: any) {
-            if (e?.name !== 'AbortError') throw e;
-            // user cancelled the picker — stay on processing screen
-          }
-        } else {
-          // ── Fallback: individual file downloads ──
-          for (let i = 0; i < entries.length; i++) {
-            const entry   = entries[i];
-            const imgBuf  = await entry.async('arraybuffer');
-            const ext     = entry.name.split('.').pop() ?? 'jpg';
-            const imgBlob = new Blob([imgBuf], { type: ext === 'png' ? 'image/png' : 'image/jpeg' });
-            const imgUrl  = URL.createObjectURL(imgBlob);
-            const a       = document.createElement('a');
-            a.href        = imgUrl;
-            a.download    = entries.length === 1
-              ? `${origBase}.${ext}`
-              : `${origBase}_page${String(i + 1).padStart(3, '0')}.${ext}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(imgUrl);
-            if (i < entries.length - 1) await new Promise(r => setTimeout(r, 120));
-          }
-          setDownloadUrl('done');
-          setDownloadName(`${origBase} (${entries.length} image${entries.length === 1 ? '' : 's'})`);
-        }
-        setLoading(false);
-        return;
-      }
-
       const url  = URL.createObjectURL(blob);
       setDownloadUrl(url);
       // Detect actual extension from blob MIME type so e.g. split returns .pdf or .zip correctly
@@ -848,21 +788,14 @@ export default function ToolClient({ slug }: { slug: string }) {
             )}
 
             <div>
-              {downloadUrl === 'done' ? (
-                <div className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-white font-extrabold text-lg shadow-md mb-5"
-                  style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}bb)` }}>
-                  ✅ {downloadName} downloaded
-                </div>
-              ) : (
-                <a
-                  href={downloadUrl}
-                  download={downloadName}
-                  className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-white font-extrabold text-lg transition-all duration-200 shadow-md hover:shadow-xl hover:opacity-90 mb-5"
-                  style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}bb)` }}
-                >
-                  ⬇️ Download {downloadName}
-                </a>
-              )}
+              <a
+                href={downloadUrl}
+                download={downloadName}
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-white font-extrabold text-lg transition-all duration-200 shadow-md hover:shadow-xl hover:opacity-90 mb-5"
+                style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}bb)` }}
+              >
+                ⬇️ Download {downloadName}
+              </a>
             </div>
             <button
               onClick={handleReset}

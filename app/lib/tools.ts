@@ -935,7 +935,7 @@ export const TOOLS: Tool[] = [
     multipleFiles: false,
     inputLabel: 'Select scanned PDF',
     acceptedFormats: '.pdf',
-    outputFormat: 'ocr.pdf',
+    outputFormat: 'pdf',
     outputMime: 'application/pdf',
     params: [
       {
