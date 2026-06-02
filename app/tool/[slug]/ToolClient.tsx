@@ -267,7 +267,10 @@ export default function ToolClient({ slug }: { slug: string }) {
       const blob = await apiPostBlob(tool.apiEndpoint, formData);
       const url  = URL.createObjectURL(blob);
       setDownloadUrl(url);
-      setDownloadName(tool.outputFormat);
+      // Keep the original filename, only change the extension to the output format's extension
+      const outExt  = tool.outputFormat.includes('.') ? tool.outputFormat.split('.').pop()! : tool.outputFormat;
+      const origBase = (files[0]?.name ?? '').replace(/\.[^.]+$/, '') || 'output';
+      setDownloadName(`${origBase}.${outExt}`);
 
       if (user) {
         const originalFileName = files[0]?.name ?? '';
