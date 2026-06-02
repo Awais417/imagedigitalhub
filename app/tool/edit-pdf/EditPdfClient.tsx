@@ -477,11 +477,11 @@ export default function EditPdfClient() {
                   {isEditing ? (
 
                     /* ══ Editing box with drag handle at top ══
-                     * The drag handle calls e.preventDefault() so the input
-                     * does NOT lose focus — user can drag while typing.       */
+                     * Size/color controls use e.preventDefault() on mousedown
+                     * so the text input NEVER loses focus while adjusting.    */
                     <div
                       className="rounded-xl shadow-2xl overflow-hidden border-2 border-blue-500 bg-white"
-                      style={{ minWidth: 190 }}
+                      style={{ minWidth: 210 }}
                     >
                       {/* ── drag handle ── */}
                       <div
@@ -490,7 +490,6 @@ export default function EditPdfClient() {
                         onMouseDown={e => startDrag(e, t)}
                       >
                         <span className="text-white text-xs font-semibold flex items-center gap-1.5">
-                          {/* 4-dot move icon */}
                           <svg width="12" height="12" viewBox="0 0 12 12" fill="white" opacity="0.9">
                             <circle cx="3.5" cy="3.5" r="1.4"/>
                             <circle cx="8.5" cy="3.5" r="1.4"/>
@@ -532,14 +531,59 @@ export default function EditPdfClient() {
                             color:       t.fontColor,
                             opacity:     t.opacity / 100,
                             fontFamily: 'Arial, sans-serif',
-                            minWidth:    140,
+                            minWidth:    150,
                           }}
                           onClick={e => e.stopPropagation()}
                         />
                       </div>
 
+                      {/* ── font size +/- (preventDefault keeps text input focused) ── */}
+                      <div className="px-2 pt-2 flex items-center gap-1.5">
+                        <span className="text-[10px] text-gray-400 mr-0.5">Size</span>
+                        <button
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => {
+                            const v = Math.max(6, t.fontSize - 2);
+                            setFontSize(v);
+                            setAnns(p => p.map(a => a.id === t.id ? { ...a, fontSize: v } : a));
+                          }}
+                          className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-sm font-bold text-gray-700 flex items-center justify-center leading-none"
+                        >−</button>
+                        <span className="text-xs font-semibold text-gray-700 w-9 text-center">{t.fontSize}pt</span>
+                        <button
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => {
+                            const v = Math.min(96, t.fontSize + 2);
+                            setFontSize(v);
+                            setAnns(p => p.map(a => a.id === t.id ? { ...a, fontSize: v } : a));
+                          }}
+                          className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-sm font-bold text-gray-700 flex items-center justify-center leading-none"
+                        >+</button>
+                      </div>
+
+                      {/* ── color swatches (preventDefault keeps text input focused) ── */}
+                      <div className="px-2 pt-1.5 pb-1 flex items-center gap-1 flex-wrap">
+                        <span className="text-[10px] text-gray-400 mr-0.5">Color</span>
+                        {['#000000','#374151','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899'].map(c => (
+                          <button key={c}
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => {
+                              setFontColor(c);
+                              setAnns(p => p.map(a => a.id === t.id ? { ...a, fontColor: c } : a));
+                            }}
+                            className="w-5 h-5 rounded-full transition-transform hover:scale-110"
+                            style={{
+                              background:  c,
+                              border:      `2px solid ${t.fontColor === c ? '#3b82f6' : '#e5e7eb'}`,
+                              outline:      t.fontColor === c ? '2px solid #93c5fd' : 'none',
+                              outlineOffset: '1px',
+                            }}
+                          />
+                        ))}
+                      </div>
+
                       {/* ── done button ── */}
-                      <div className="px-2 py-2">
+                      <div className="px-2 pb-2">
                         <button
                           onMouseDown={e => e.stopPropagation()}
                           onClick={e => { e.stopPropagation(); commitEdit(); }}
