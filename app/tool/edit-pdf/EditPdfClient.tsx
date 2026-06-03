@@ -76,6 +76,9 @@ export default function EditPdfClient() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText]   = useState('');
   const editInputRef              = useRef<HTMLInputElement>(null);
+  /* refs mirror state so commitEdit always reads latest values without stale closures */
+  const editingIdRef = useRef<string | null>(null);
+  const editTextRef  = useRef('');
 
   /* drag — also used to distinguish click vs drag */
   const [dragId, setDragId]   = useState<string | null>(null);
@@ -110,6 +113,9 @@ export default function EditPdfClient() {
 
   useEffect(() => { if (pdfDocRef.current) renderPage(page); }, [page, renderPage]);
   useEffect(() => { if (editingId) setTimeout(() => editInputRef.current?.focus(), 30); }, [editingId]);
+  /* keep refs in sync */
+  useEffect(() => { editingIdRef.current = editingId; }, [editingId]);
+  /* editText ref is updated inline via setEditTextRef helper below */
 
   /* ── load file ────────────────────────────────────────────────────────── */
   const handleFile = async (f: File) => {
@@ -151,36 +157,45 @@ export default function EditPdfClient() {
       underline: false,
     };
     setAnns(prev => [...prev, newAnn]);
+    editingIdRef.current = id;
     setEditingId(id);
-    setEditText('');
+    setEditTextRef('');
     setMode('select');
   };
 
-  /* ── commit / cancel edit ─────────────────────────────────────────────── */
+  /* helper that updates both state and ref atomically */
+  const setEditTextRef = (v: string) => {
+    editTextRef.current = v;
+    setEditText(v);
+  };
+
+  /* ── commit edit — uses refs so it never reads stale closure values ─────── */
   const commitEdit = useCallback(() => {
-    setEditingId(id => {
-      if (!id) return null;
-      setEditText(txt => {
-        setAnns(prev => {
-          if (!txt.trim()) return prev.filter(a => a.id !== id);
-          return prev.map(a => a.id === id ? { ...a, text: txt } : a);
-        });
-        return '';
-      });
-      return null;
+    const id  = editingIdRef.current;
+    const txt = editTextRef.current;
+    if (!id) return;
+    setAnns(prev => {
+      if (!txt.trim()) return prev.filter(a => a.id !== id);
+      return prev.map(a => a.id === id ? { ...a, text: txt } : a);
     });
+    editingIdRef.current = null;
+    editTextRef.current  = '';
+    setEditingId(null);
+    setEditText('');
   }, []);
 
   const openEdit = (ann: TextAnn) => {
-    if (editingId && editingId !== ann.id) {
-      // commit previous
+    const prevId  = editingIdRef.current;
+    const prevTxt = editTextRef.current;
+    if (prevId && prevId !== ann.id) {
+      /* commit previous before opening new */
       setAnns(prev => {
-        const cur = prev.find(a => a.id === editingId) as TextAnn | undefined;
-        if (!cur) return prev;
-        if (!editText.trim()) return prev.filter(a => a.id !== editingId);
-        return prev.map(a => a.id === editingId ? { ...a, text: editText } : a);
+        if (!prevTxt.trim()) return prev.filter(a => a.id !== prevId);
+        return prev.map(a => a.id === prevId ? { ...a, text: prevTxt } : a);
       });
     }
+    editingIdRef.current = ann.id;
+    editTextRef.current  = ann.text;
     setEditingId(ann.id);
     setEditText(ann.text);
   };
@@ -576,6 +591,7 @@ export default function EditPdfClient() {
                           onClick={e => {
                             e.stopPropagation();
                             setAnns(p => p.filter(a => a.id !== t.id));
+                            editingIdRef.current = null; editTextRef.current = '';
                             setEditingId(null); setEditText('');
                           }}
                         >×</button>
@@ -587,12 +603,13 @@ export default function EditPdfClient() {
                           ref={editInputRef}
                           type="text"
                           value={editText}
-                          onChange={e => setEditText(e.target.value)}
+                          onChange={e => setEditTextRef(e.target.value)}
                           onKeyDown={e => {
                             if (e.key === 'Enter')  { e.preventDefault(); commitEdit(); }
                             if (e.key === 'Escape') {
                               const existing = anns.find(a => a.id === t.id) as TextAnn | undefined;
                               if (!existing?.text) { setAnns(p => p.filter(a => a.id !== t.id)); }
+                              editingIdRef.current = null; editTextRef.current = '';
                               setEditingId(null); setEditText('');
                             }
                           }}
