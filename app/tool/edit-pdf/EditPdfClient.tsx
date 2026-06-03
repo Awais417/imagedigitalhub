@@ -361,36 +361,58 @@ export default function EditPdfClient() {
       e.preventDefault();
       // close any open item editor first
       if (editingItem) { setEditingItem(null); return; }
-      if (!imgRef.current || !pageTextItems.length) return;
+      if (!imgRef.current || !pdfInfo) return;
       const r  = imgRef.current.getBoundingClientRect();
       const fx = (e.clientX - r.left) / r.width;
       const fy = (e.clientY - r.top)  / r.height;
 
-      // Find item whose bounding box contains (or is closest to) the click
+      // Try to snap to a pdfjs-extracted text item
       let best: PdfTextItem | null = null;
-      let bestDist = Infinity;
-      for (const item of pageTextItems) {
-        // Expand hit-box by 1% on each side so small text is easier to click
-        const pad = 0.01;
-        const inBox =
-          fx >= item.fx - pad && fx <= item.fx + item.fw + pad &&
-          fy >= item.fy - pad && fy <= item.fy + item.fh + pad;
-        const cx   = item.fx + item.fw / 2;
-        const cy   = item.fy + item.fh / 2;
-        const dist = Math.hypot(fx - cx, fy - cy);
-        if (inBox && dist < bestDist) { bestDist = dist; best = item; }
-      }
-      // Fallback: closest item within 8% of the page
-      if (!best) {
+      if (pageTextItems.length > 0) {
+        let bestDist = Infinity;
+        // Priority 1: item whose expanded bounding box contains the click
         for (const item of pageTextItems) {
+          const pad = 0.012;
+          const inBox =
+            fx >= item.fx - pad && fx <= item.fx + item.fw + pad &&
+            fy >= item.fy - pad && fy <= item.fy + item.fh + pad;
           const cx   = item.fx + item.fw / 2;
           const cy   = item.fy + item.fh / 2;
           const dist = Math.hypot(fx - cx, fy - cy);
-          if (dist < 0.08 && dist < bestDist) { bestDist = dist; best = item; }
+          if (inBox && dist < bestDist) { bestDist = dist; best = item; }
+        }
+        // Priority 2: nearest item within 10% of page height
+        if (!best) {
+          bestDist = Infinity;
+          for (const item of pageTextItems) {
+            const cx   = item.fx + item.fw / 2;
+            const cy   = item.fy + item.fh / 2;
+            const dist = Math.hypot(fx - cx, fy - cy);
+            if (dist < 0.10 && dist < bestDist) { bestDist = dist; best = item; }
+          }
         }
       }
+
       if (best) {
         setEditingItem({ item: best, text: best.text, fontSize: best.fontSize,
+          fontColor: '#000000', underline: false });
+      } else {
+        // Fallback: no pdfjs text found — create a synthetic item at click position
+        // so the user can still type new text directly on the PDF
+        const fs = 12;
+        const synth: PdfTextItem = {
+          id: uid(), page,
+          text: '',   // empty = no erase needed
+          fx: Math.max(0, Math.min(0.95, fx - 0.05)),
+          fy: Math.max(0, Math.min(0.95, fy - 0.02)),
+          fw: 0.25, fh: (fs * 1.4) / pdfInfo.height,
+          x: Math.round(fx * pdfInfo.width),
+          y: Math.round((1 - fy) * pdfInfo.height),
+          width:  Math.round(0.25 * pdfInfo.width),
+          height: Math.round(fs * 1.4),
+          fontSize: fs,
+        };
+        setEditingItem({ item: synth, text: '', fontSize: fs,
           fontColor: '#000000', underline: false });
       }
       return;
@@ -418,26 +440,36 @@ export default function EditPdfClient() {
     const { item, text, fontSize, fontColor, underline } = editingItem;
     if (!text.trim()) { setEditingItem(null); return; }
 
-    const eraseAnn: EraseAnn = {
-      id: uid(), type: 'erase', page: item.page,
-      fx: item.fx - 0.002, fy: item.fy - 0.002,
-      fw: item.fw + 0.004, fh: item.fh + 0.004,
-      x: item.x - 1, y: item.y - 1,
-      width:  item.width  + 2,
-      height: item.height + 2,
-    };
-    /* iLovePDF y = distance from TOP; pdf-lib y = baseline from BOTTOM.
-       item.y is already in bottom-left PDF pts (baseline area).            */
-    const textAnn: TextAnn = {
+    const toAdd: Annotation[] = [];
+
+    // Only erase if this item came from real pdfjs extraction (has original text)
+    if (item.text.trim()) {
+      toAdd.push({
+        id: uid(), type: 'erase', page: item.page,
+        fx: item.fx - 0.002, fy: item.fy - 0.002,
+        fw: item.fw + 0.004, fh: item.fh + 0.004,
+        x: item.x - 1, y: item.y - 1,
+        width:  item.width  + 2,
+        height: item.height + 2,
+      } as EraseAnn);
+    }
+
+    /* Place text annotation at the item's baseline position */
+    toAdd.push({
       id: uid(), type: 'text', page: item.page,
       fx: item.fx,
-      fy: item.fy + item.fh - (fontSize / pdfInfo.height),
+      fy: item.text.trim()
+        ? item.fy + item.fh - (fontSize / pdfInfo.height)
+        : item.fy,
       x: item.x,
-      y: item.y + Math.round(item.fontSize * 0.15), // small ascender nudge
+      y: item.text.trim()
+        ? item.y + Math.round(item.fontSize * 0.15)
+        : item.y,
       text, fontSize, fontColor,
       opacity: 100, underline,
-    };
-    setAnns(prev => [...prev, eraseAnn, textAnn]);
+    } as TextAnn);
+
+    setAnns(prev => [...prev, ...toAdd]);
     setEditingItem(null);
   };
 
@@ -541,7 +573,11 @@ export default function EditPdfClient() {
         </button>
         {editTextMode && (
           <span className="text-xs text-purple-600 bg-purple-50 px-3 py-1 rounded-full font-medium">
-            {extractingText ? 'Detecting text…' : 'Click any text on PDF to edit it'}
+            {extractingText
+              ? 'Detecting text…'
+              : pageTextItems.length > 0
+                ? `${pageTextItems.length} items found — click text to edit`
+                : 'Click anywhere on PDF to place text'}
           </span>
         )}
 
@@ -925,12 +961,16 @@ export default function EditPdfClient() {
                     >
                       <div
                         className="rounded-xl shadow-2xl overflow-hidden border-2 border-purple-500 bg-white"
-                        style={{ minWidth: 260 }}
+                        style={{ minWidth: 260, userSelect: 'text' }}
                         onMouseDown={e => e.stopPropagation()}
+                        onClick={e => e.stopPropagation()}
                       >
                         {/* header */}
-                        <div className="flex items-center justify-between px-2 py-1.5 bg-purple-600 select-none">
-                          <span className="text-white text-xs font-semibold">Edit PDF Text</span>
+                        <div className="flex items-center justify-between px-2 py-1.5 bg-purple-600"
+                          style={{ userSelect: 'none' }}>
+                          <span className="text-white text-xs font-semibold">
+                            {editingItem.item.text.trim() ? 'Edit PDF Text' : 'Add Text Here'}
+                          </span>
                           <button
                             className="text-white/80 hover:text-white text-base font-bold leading-none"
                             onClick={() => setEditingItem(null)}
@@ -941,6 +981,7 @@ export default function EditPdfClient() {
                         <div className="px-2 pt-2">
                           <input
                             ref={editItemInputRef}
+                            autoFocus
                             type="text"
                             value={editingItem.text}
                             onChange={e => setEditingItem(prev => prev ? { ...prev, text: e.target.value } : null)}
@@ -948,13 +989,14 @@ export default function EditPdfClient() {
                               if (e.key === 'Enter')  { e.preventDefault(); confirmItemEdit(); }
                               if (e.key === 'Escape') setEditingItem(null);
                             }}
-                            placeholder="Edit text…"
+                            placeholder={editingItem.item.text.trim() ? 'Edit text…' : 'Type new text…'}
                             className="outline-none w-full bg-transparent border-b border-purple-300 pb-1 text-gray-800"
                             style={{
                               fontSize:       `${Math.min(editingItem.fontSize, 22)}px`,
                               fontFamily:     'Arial, sans-serif',
                               textDecoration:  editingItem.underline ? 'underline' : 'none',
                               minWidth: 200,
+                              userSelect: 'text',
                             }}
                           />
                         </div>
