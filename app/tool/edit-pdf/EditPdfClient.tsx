@@ -28,6 +28,18 @@ type Annotation = TextAnn | EraseAnn | HighlightAnn;
 type Mode = 'select' | 'erase' | 'highlight';
 interface PdfInfo { pageCount: number; width: number; height: number; }
 
+/* extracted text item from the PDF page */
+interface PdfTextItem {
+  id: string; page: number; text: string;
+  fx: number; fy: number; fw: number; fh: number;   // fractional position
+  x: number;  y: number;  width: number; height: number; // PDF pts
+  fontSize: number;
+}
+interface EditingItem {
+  item: PdfTextItem;
+  text: string; fontSize: number; fontColor: string; underline: boolean;
+}
+
 /* ── auth ──────────────────────────────────────────────────────────────────── */
 function getToken() {
   try { return (JSON.parse(localStorage.getItem('auth') || '{}') as { token?: string }).token ?? null; }
@@ -89,6 +101,13 @@ export default function EditPdfClient() {
   const [drawStart, setDrawStart] = useState<{ fx: number; fy: number } | null>(null);
   const [drawDrag, setDrawDrag]   = useState<{ fx: number; fy: number } | null>(null);
 
+  /* ── edit-existing-text mode ── */
+  const [editTextMode, setEditTextMode]       = useState(false);
+  const [pageTextItems, setPageTextItems]     = useState<PdfTextItem[]>([]);
+  const [extractingText, setExtractingText]   = useState(false);
+  const [editingItem, setEditingItem]         = useState<EditingItem | null>(null);
+  const editItemInputRef                      = useRef<HTMLInputElement>(null);
+
   /* DOM refs */
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const imgRef        = useRef<HTMLImageElement>(null);
@@ -113,9 +132,57 @@ export default function EditPdfClient() {
 
   useEffect(() => { if (pdfDocRef.current) renderPage(page); }, [page, renderPage]);
   useEffect(() => { if (editingId) setTimeout(() => editInputRef.current?.focus(), 30); }, [editingId]);
+  useEffect(() => { if (editingItem) setTimeout(() => editItemInputRef.current?.focus(), 30); }, [editingItem]);
   /* keep refs in sync */
   useEffect(() => { editingIdRef.current = editingId; }, [editingId]);
   /* editText ref is updated inline via setEditTextRef helper below */
+
+  /* ── extract text items from current page ─────────────────────────────── */
+  useEffect(() => {
+    if (!editTextMode || !pdfDocRef.current || !pdfInfo) {
+      setPageTextItems([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setExtractingText(true);
+      try {
+        const pg      = await pdfDocRef.current.getPage(page);
+        const content = await pg.getTextContent();
+        if (cancelled) return;
+        const items: PdfTextItem[] = (content.items as any[])
+          .filter(it => it.str?.trim())
+          .map(it => {
+            const [, , , scaleY, x, y] = it.transform as number[];
+            const fs  = Math.abs(scaleY) || 12;
+            const w   = it.width  || fs * it.str.length * 0.55;
+            const h   = fs * 1.25;
+            /* fractional: top-left origin, y-flipped */
+            const fx  = x / pdfInfo.width;
+            const fy  = 1 - (y + fs * 0.85) / pdfInfo.height;
+            const fw  = w  / pdfInfo.width;
+            const fh  = h  / pdfInfo.height;
+            return {
+              id: uid(), page,
+              text: it.str,
+              fx: Math.max(0, fx),
+              fy: Math.max(0, fy),
+              fw: Math.min(1, fw),
+              fh: Math.min(1, fh),
+              x: Math.round(x),
+              y: Math.round(y - fs * 0.2),   // slight below baseline for descenders
+              width:  Math.round(w + 2),
+              height: Math.round(h),
+              fontSize: Math.round(fs),
+            };
+          });
+        setPageTextItems(items);
+      } catch (e) { console.error('text extract', e); }
+      finally { if (!cancelled) setExtractingText(false); }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTextMode, page, pdfInfo]);
 
   /* ── load file ────────────────────────────────────────────────────────── */
   const handleFile = async (f: File) => {
@@ -303,6 +370,37 @@ export default function EditPdfClient() {
     setDrawStart(pos); setDrawDrag(pos);
   };
 
+  /* ── confirm edit of existing PDF text ──────────────────────────────────
+   * Blanks out the original text with a white rectangle, then places the
+   * new text annotation at the same baseline position.                      */
+  const confirmItemEdit = () => {
+    if (!editingItem || !pdfInfo) return;
+    const { item, text, fontSize, fontColor, underline } = editingItem;
+    if (!text.trim()) { setEditingItem(null); return; }
+
+    const eraseAnn: EraseAnn = {
+      id: uid(), type: 'erase', page: item.page,
+      fx: item.fx - 0.002, fy: item.fy - 0.002,
+      fw: item.fw + 0.004, fh: item.fh + 0.004,
+      x: item.x - 1, y: item.y - 1,
+      width:  item.width  + 2,
+      height: item.height + 2,
+    };
+    /* iLovePDF y = distance from TOP; pdf-lib y = baseline from BOTTOM.
+       item.y is already in bottom-left PDF pts (baseline area).            */
+    const textAnn: TextAnn = {
+      id: uid(), type: 'text', page: item.page,
+      fx: item.fx,
+      fy: item.fy + item.fh - (fontSize / pdfInfo.height),
+      x: item.x,
+      y: item.y + Math.round(item.fontSize * 0.15), // small ascender nudge
+      text, fontSize, fontColor,
+      opacity: 100, underline,
+    };
+    setAnns(prev => [...prev, eraseAnn, textAnn]);
+    setEditingItem(null);
+  };
+
   /* ── download ─────────────────────────────────────────────────────────── */
   const download = async () => {
     if (!file || anns.length === 0) return;
@@ -391,6 +489,21 @@ export default function EditPdfClient() {
         >
           ✏️ Add Text
         </button>
+
+        {/* Edit Existing Text */}
+        <button
+          onClick={() => { setEditTextMode(m => !m); setEditingItem(null); setMode('select'); }}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+            editTextMode ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          🖊 {editTextMode ? 'Editing Text…' : 'Edit Text'}
+        </button>
+        {editTextMode && (
+          <span className="text-xs text-purple-600 bg-purple-50 px-3 py-1 rounded-full font-medium">
+            {extractingText ? 'Detecting text…' : 'Click any text on PDF to edit it'}
+          </span>
+        )}
 
         {/* Highlight */}
         <button
@@ -500,7 +613,7 @@ export default function EditPdfClient() {
                 draggable={false}
                 onMouseDown={handleImgMouseDown}
                 className="block max-w-[780px] w-full rounded border border-gray-200"
-                style={{ cursor: mode !== 'select' ? 'crosshair' : 'default', display: 'block' }}
+                style={{ cursor: mode !== 'select' ? 'crosshair' : editTextMode ? 'text' : 'default', display: 'block' }}
               />
             )}
 
@@ -734,6 +847,162 @@ export default function EditPdfClient() {
                         onClick={e => { e.stopPropagation(); setAnns(p => p.filter(a => a.id !== t.id)); }}
                         className="absolute -top-2.5 -right-2.5 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] font-bold leading-none hidden group-hover:flex items-center justify-center shadow z-50"
                       >×</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* ── Edit-Text mode: clickable overlays over every PDF text item ── */}
+            {editTextMode && img && pageTextItems.map(item => {
+              const isActive = editingItem?.item.id === item.id;
+              return (
+                <div key={item.id}>
+                  {/* Hoverable highlight over the original text */}
+                  {!isActive && (
+                    <div
+                      className="absolute group cursor-pointer"
+                      style={{
+                        left:    `${item.fx * 100}%`,
+                        top:     `${item.fy * 100}%`,
+                        width:   `${item.fw * 100}%`,
+                        height:  `${item.fh * 100}%`,
+                        background: 'rgba(124,58,237,0.08)',
+                        border:  '1px solid rgba(124,58,237,0.25)',
+                        zIndex:  15,
+                        pointerEvents: 'auto',
+                      }}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setEditingItem({
+                          item,
+                          text: item.text,
+                          fontSize: item.fontSize,
+                          fontColor: '#000000',
+                          underline: false,
+                        });
+                      }}
+                      title={`Click to edit: "${item.text}"`}
+                    >
+                      <span className="hidden group-hover:block absolute -top-5 left-0 text-[10px] bg-purple-700 text-white px-1.5 py-0.5 rounded whitespace-nowrap z-50">
+                        {item.text.length > 20 ? item.text.slice(0, 20) + '…' : item.text}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Edit popup for this item */}
+                  {isActive && editingItem && (
+                    <div
+                      className="absolute z-50"
+                      style={{ left: `${item.fx * 100}%`, top: `${item.fy * 100}%` }}
+                    >
+                      <div
+                        className="rounded-xl shadow-2xl overflow-hidden border-2 border-purple-500 bg-white"
+                        style={{ minWidth: 260 }}
+                        onMouseDown={e => e.stopPropagation()}
+                      >
+                        {/* header */}
+                        <div className="flex items-center justify-between px-2 py-1.5 bg-purple-600 select-none">
+                          <span className="text-white text-xs font-semibold">Edit PDF Text</span>
+                          <button
+                            className="text-white/80 hover:text-white text-base font-bold leading-none"
+                            onClick={() => setEditingItem(null)}
+                          >×</button>
+                        </div>
+
+                        {/* text input */}
+                        <div className="px-2 pt-2">
+                          <input
+                            ref={editItemInputRef}
+                            type="text"
+                            value={editingItem.text}
+                            onChange={e => setEditingItem(prev => prev ? { ...prev, text: e.target.value } : null)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter')  { e.preventDefault(); confirmItemEdit(); }
+                              if (e.key === 'Escape') setEditingItem(null);
+                            }}
+                            placeholder="Edit text…"
+                            className="outline-none w-full bg-transparent border-b border-purple-300 pb-1 text-gray-800"
+                            style={{
+                              fontSize:       `${Math.min(editingItem.fontSize, 22)}px`,
+                              fontFamily:     'Arial, sans-serif',
+                              textDecoration:  editingItem.underline ? 'underline' : 'none',
+                              minWidth: 200,
+                            }}
+                          />
+                        </div>
+
+                        {/* size controls */}
+                        <div className="px-2 pt-2 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] text-gray-400">Size</span>
+                          <button
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => setEditingItem(prev => prev ? { ...prev, fontSize: Math.max(6, prev.fontSize - 2) } : null)}
+                            className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-sm font-bold text-gray-700 flex items-center justify-center"
+                          >−</button>
+                          <input
+                            type="number"
+                            value={editingItem.fontSize}
+                            min={6} max={200}
+                            onMouseDown={e => e.stopPropagation()}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => {
+                              const v = Math.max(6, Math.min(200, Number(e.target.value) || 6));
+                              setEditingItem(prev => prev ? { ...prev, fontSize: v } : null);
+                            }}
+                            className="w-14 border border-gray-200 rounded px-1 py-0.5 text-xs text-center bg-gray-50 text-gray-800 focus:outline-none focus:border-purple-400"
+                          />
+                          <button
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => setEditingItem(prev => prev ? { ...prev, fontSize: Math.min(200, prev.fontSize + 2) } : null)}
+                            className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-sm font-bold text-gray-700 flex items-center justify-center"
+                          >+</button>
+                          {/* underline */}
+                          <button
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => setEditingItem(prev => prev ? { ...prev, underline: !prev.underline } : null)}
+                            className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition-all"
+                            style={{
+                              background:  editingItem.underline ? '#7c3aed' : '#f3f4f6',
+                              color:       editingItem.underline ? '#fff' : '#6b7280',
+                              border:      `1.5px solid ${editingItem.underline ? '#6d28d9' : '#e5e7eb'}`,
+                              textDecoration: 'underline',
+                            }}
+                          >U</button>
+                        </div>
+
+                        {/* color swatches */}
+                        <div className="px-2 pt-1.5 pb-1 flex items-center gap-1 flex-wrap">
+                          <span className="text-[10px] text-gray-400">Color</span>
+                          {['#000000','#374151','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899'].map(c => (
+                            <button key={c}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => setEditingItem(prev => prev ? { ...prev, fontColor: c } : null)}
+                              className="w-5 h-5 rounded-full transition-transform hover:scale-110"
+                              style={{
+                                background:    c,
+                                border:       `2px solid ${editingItem.fontColor === c ? '#7c3aed' : '#e5e7eb'}`,
+                                outline:       editingItem.fontColor === c ? '2px solid #c4b5fd' : 'none',
+                                outlineOffset: '1px',
+                              }}
+                            />
+                          ))}
+                        </div>
+
+                        {/* replace / cancel */}
+                        <div className="px-2 pb-2 flex gap-1.5">
+                          <button
+                            onMouseDown={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); confirmItemEdit(); }}
+                            className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors"
+                          >✓ Replace Text</button>
+                          <button
+                            onMouseDown={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); setEditingItem(null); }}
+                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold rounded-lg transition-colors"
+                          >Cancel</button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
