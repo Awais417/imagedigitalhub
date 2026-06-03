@@ -356,6 +356,46 @@ export default function EditPdfClient() {
   };
 
   const handleImgMouseDown = (e: React.MouseEvent<HTMLImageElement>) => {
+    /* ── Edit-Text mode: find the nearest text item and open its editor ── */
+    if (editTextMode) {
+      e.preventDefault();
+      // close any open item editor first
+      if (editingItem) { setEditingItem(null); return; }
+      if (!imgRef.current || !pageTextItems.length) return;
+      const r  = imgRef.current.getBoundingClientRect();
+      const fx = (e.clientX - r.left) / r.width;
+      const fy = (e.clientY - r.top)  / r.height;
+
+      // Find item whose bounding box contains (or is closest to) the click
+      let best: PdfTextItem | null = null;
+      let bestDist = Infinity;
+      for (const item of pageTextItems) {
+        // Expand hit-box by 1% on each side so small text is easier to click
+        const pad = 0.01;
+        const inBox =
+          fx >= item.fx - pad && fx <= item.fx + item.fw + pad &&
+          fy >= item.fy - pad && fy <= item.fy + item.fh + pad;
+        const cx   = item.fx + item.fw / 2;
+        const cy   = item.fy + item.fh / 2;
+        const dist = Math.hypot(fx - cx, fy - cy);
+        if (inBox && dist < bestDist) { bestDist = dist; best = item; }
+      }
+      // Fallback: closest item within 8% of the page
+      if (!best) {
+        for (const item of pageTextItems) {
+          const cx   = item.fx + item.fw / 2;
+          const cy   = item.fy + item.fh / 2;
+          const dist = Math.hypot(fx - cx, fy - cy);
+          if (dist < 0.08 && dist < bestDist) { bestDist = dist; best = item; }
+        }
+      }
+      if (best) {
+        setEditingItem({ item: best, text: best.text, fontSize: best.fontSize,
+          fontColor: '#000000', underline: false });
+      }
+      return;
+    }
+
     if (mode !== 'erase' && mode !== 'highlight') {
       /* click on PDF canvas outside annotations → commit any open edit */
       if (editingId) commitEdit();
@@ -613,7 +653,7 @@ export default function EditPdfClient() {
                 draggable={false}
                 onMouseDown={handleImgMouseDown}
                 className="block max-w-[780px] w-full rounded border border-gray-200"
-                style={{ cursor: mode !== 'select' ? 'crosshair' : editTextMode ? 'text' : 'default', display: 'block' }}
+                style={{ cursor: editTextMode ? 'crosshair' : mode !== 'select' ? 'crosshair' : 'default', display: 'block' }}
               />
             )}
 
@@ -853,41 +893,28 @@ export default function EditPdfClient() {
               );
             })}
 
-            {/* ── Edit-Text mode: clickable overlays over every PDF text item ── */}
+            {/* ── Edit-Text mode: visual indicators (non-interactive, clicks pass through to image) ── */}
             {editTextMode && img && pageTextItems.map(item => {
               const isActive = editingItem?.item.id === item.id;
               return (
                 <div key={item.id}>
-                  {/* Hoverable highlight over the original text */}
+                  {/* Visual highlight — pointer-events:none so image mouseDown still fires */}
                   {!isActive && (
                     <div
-                      className="absolute group cursor-pointer"
                       style={{
+                        position: 'absolute',
                         left:    `${item.fx * 100}%`,
                         top:     `${item.fy * 100}%`,
                         width:   `${item.fw * 100}%`,
                         height:  `${item.fh * 100}%`,
-                        background: 'rgba(124,58,237,0.08)',
-                        border:  '1px solid rgba(124,58,237,0.25)',
+                        background: 'rgba(124,58,237,0.10)',
+                        border:  '1px solid rgba(124,58,237,0.40)',
+                        borderRadius: 2,
                         zIndex:  15,
-                        pointerEvents: 'auto',
+                        pointerEvents: 'none',   // ← clicks pass through to the <img>
+                        boxSizing: 'border-box',
                       }}
-                      onClick={e => {
-                        e.stopPropagation();
-                        setEditingItem({
-                          item,
-                          text: item.text,
-                          fontSize: item.fontSize,
-                          fontColor: '#000000',
-                          underline: false,
-                        });
-                      }}
-                      title={`Click to edit: "${item.text}"`}
-                    >
-                      <span className="hidden group-hover:block absolute -top-5 left-0 text-[10px] bg-purple-700 text-white px-1.5 py-0.5 rounded whitespace-nowrap z-50">
-                        {item.text.length > 20 ? item.text.slice(0, 20) + '…' : item.text}
-                      </span>
-                    </div>
+                    />
                   )}
 
                   {/* Edit popup for this item */}
