@@ -628,8 +628,8 @@ export default function EditPdfClient() {
                       </div>
 
                       {/* size controls */}
-                      <div className="px-2 pt-2 flex items-center gap-1.5">
-                        <span className="text-[10px] text-gray-400 mr-0.5">Size</span>
+                      <div className="px-2 pt-2 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-gray-400">Size</span>
                         <button
                           onMouseDown={e => e.preventDefault()}
                           onClick={() => {
@@ -639,11 +639,23 @@ export default function EditPdfClient() {
                           }}
                           className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-sm font-bold text-gray-700 flex items-center justify-center"
                         >−</button>
-                        <span className="text-xs font-semibold text-gray-700 w-9 text-center">{t.fontSize}pt</span>
+                        <input
+                          type="number"
+                          value={t.fontSize}
+                          min={6} max={200}
+                          onMouseDown={e => e.stopPropagation()}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => {
+                            const v = Math.max(6, Math.min(200, Number(e.target.value) || 6));
+                            setFontSize(v);
+                            setAnns(p => p.map(a => a.id === t.id ? { ...a, fontSize: v } : a));
+                          }}
+                          className="w-14 border border-gray-200 rounded px-1 py-0.5 text-xs text-center bg-gray-50 text-gray-800 focus:outline-none focus:border-blue-400"
+                        />
                         <button
                           onMouseDown={e => e.preventDefault()}
                           onClick={() => {
-                            const v = Math.min(96, t.fontSize + 2);
+                            const v = Math.min(200, t.fontSize + 2);
                             setFontSize(v);
                             setAnns(p => p.map(a => a.id === t.id ? { ...a, fontSize: v } : a));
                           }}
@@ -654,7 +666,7 @@ export default function EditPdfClient() {
                         <button
                           onMouseDown={e => e.preventDefault()}
                           onClick={() => setAnns(p => p.map(a => a.id === t.id ? { ...a, underline: !t.underline } : a))}
-                          className="ml-1 w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition-all"
+                          className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition-all"
                           style={{
                             background:  t.underline ? '#3b82f6' : '#f3f4f6',
                             color:       t.underline ? '#fff' : '#6b7280',
