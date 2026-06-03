@@ -8,17 +8,24 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.godoclab.com/ap
 /* ── types ─────────────────────────────────────────────────────────────────── */
 interface TextAnn {
   id: string; type: 'text'; page: number;
-  fx: number; fy: number;           // 0-1 fractional position on rendered image
-  x: number;  y: number;            // PDF pts (bottom-left origin)
+  fx: number; fy: number;
+  x: number;  y: number;
   text: string; fontSize: number; fontColor: string; opacity: number;
+  underline: boolean;
 }
 interface EraseAnn {
   id: string; type: 'erase'; page: number;
   fx: number; fy: number; fw: number; fh: number;
   x: number;  y: number;  width: number; height: number;
 }
-type Annotation = TextAnn | EraseAnn;
-type Mode = 'select' | 'erase';
+interface HighlightAnn {
+  id: string; type: 'highlight'; page: number;
+  fx: number; fy: number; fw: number; fh: number;
+  x: number;  y: number;  width: number; height: number;
+  color: string; opacity: number;
+}
+type Annotation = TextAnn | EraseAnn | HighlightAnn;
+type Mode = 'select' | 'erase' | 'highlight';
 interface PdfInfo { pageCount: number; width: number; height: number; }
 
 /* ── auth ──────────────────────────────────────────────────────────────────── */
@@ -30,7 +37,7 @@ const authHdrs = (): HeadersInit => {
   const t = getToken(); return t ? { Authorization: `Bearer ${t}` } : {};
 };
 
-/* ── pdfjs (browser-only) ─────────────────────────────────────────────────── */
+/* ── pdfjs ────────────────────────────────────────────────────────────────── */
 let _pdfjs: any = null;
 async function pdfjs() {
   if (_pdfjs) return _pdfjs;
@@ -45,44 +52,46 @@ const uid = () => `${Date.now()}-${Math.random()}`;
 export default function EditPdfClient() {
 
   /* core */
-  const [file, setFile]           = useState<File | null>(null);
-  const [pdfInfo, setPdfInfo]     = useState<PdfInfo | null>(null);
-  const [page, setPage]           = useState(1);
-  const [cache, setCache]         = useState<Record<number, string>>({});
-  const [busy, setBusy]           = useState(false);
-  const [downloading, setDl]      = useState(false);
-  const [error, setError]         = useState('');
-  const [dropDrag, setDropDrag]   = useState(false);
-  const pdfDocRef                 = useRef<any>(null);
+  const [file, setFile]         = useState<File | null>(null);
+  const [pdfInfo, setPdfInfo]   = useState<PdfInfo | null>(null);
+  const [page, setPage]         = useState(1);
+  const [cache, setCache]       = useState<Record<number, string>>({});
+  const [busy, setBusy]         = useState(false);
+  const [downloading, setDl]    = useState(false);
+  const [error, setError]       = useState('');
+  const [dropDrag, setDropDrag] = useState(false);
+  const pdfDocRef               = useRef<any>(null);
 
   /* annotations */
-  const [anns, setAnns]           = useState<Annotation[]>([]);
+  const [anns, setAnns] = useState<Annotation[]>([]);
 
-  /* mode & toolbar */
-  const [mode, setMode]           = useState<Mode>('select');
-  const [fontSize, setFontSize]   = useState(14);
-  const [fontColor, setFontColor] = useState('#e53e3e');
-  const [opacity, setOpacity]     = useState(100);
+  /* mode & defaults */
+  const [mode, setMode]               = useState<Mode>('select');
+  const [fontSize, setFontSize]       = useState(14);
+  const [fontColor, setFontColor]     = useState('#000000');
+  const [highlightColor, setHlColor]  = useState('#ffff00');
+  const [opacity, setOpacity]         = useState(100);
 
-  /* inline editing */
+  /* inline editing — no onBlur; only Enter or Done button commits */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText]   = useState('');
   const editInputRef              = useRef<HTMLInputElement>(null);
 
-  /* drag */
-  const [dragId, setDragId]       = useState<string | null>(null);
-  const dragOffset                = useRef({ dx: 0, dy: 0 });
+  /* drag — also used to distinguish click vs drag */
+  const [dragId, setDragId]   = useState<string | null>(null);
+  const dragOffset             = useRef({ dx: 0, dy: 0 });
+  const mouseDownPos           = useRef<{ x: number; y: number } | null>(null);
 
-  /* erase draw */
-  const [eraseStart, setEraseStart] = useState<{ fx: number; fy: number } | null>(null);
-  const [eraseDrag, setEraseDrag]   = useState<{ fx: number; fy: number } | null>(null);
+  /* draw (erase + highlight) */
+  const [drawStart, setDrawStart] = useState<{ fx: number; fy: number } | null>(null);
+  const [drawDrag, setDrawDrag]   = useState<{ fx: number; fy: number } | null>(null);
 
   /* DOM refs */
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const imgRef        = useRef<HTMLImageElement>(null);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
 
-  /* ── render one PDF page ──────────────────────────────────────────────── */
+  /* ── render page ─────────────────────────────────────────────────────── */
   const renderPage = useCallback(async (n: number) => {
     if (!pdfDocRef.current || cache[n]) return;
     setBusy(true);
@@ -100,11 +109,7 @@ export default function EditPdfClient() {
   }, [cache]);
 
   useEffect(() => { if (pdfDocRef.current) renderPage(page); }, [page, renderPage]);
-
-  /* auto-focus input when editing opens */
-  useEffect(() => {
-    if (editingId) setTimeout(() => editInputRef.current?.focus(), 30);
-  }, [editingId]);
+  useEffect(() => { if (editingId) setTimeout(() => editInputRef.current?.focus(), 30); }, [editingId]);
 
   /* ── load file ────────────────────────────────────────────────────────── */
   const handleFile = async (f: File) => {
@@ -131,16 +136,11 @@ export default function EditPdfClient() {
     finally { setBusy(false); }
   };
 
-  /* ── "Add Text" button ────────────────────────────────────────────────────
-   * Immediately creates a draggable text box at the centre of the PDF.
-   * No need to click on the canvas first.                                    */
+  /* ── Add Text ─────────────────────────────────────────────────────────── */
   const handleAddText = () => {
     if (!pdfInfo) return;
-    /* commit any open edit first */
     if (editingId) commitEdit();
-
     const id = uid();
-    /* place at roughly centre of the visible page */
     const fx = 0.15, fy = 0.1;
     const newAnn: TextAnn = {
       id, type: 'text', page,
@@ -148,6 +148,7 @@ export default function EditPdfClient() {
       x: Math.round(fx * pdfInfo.width),
       y: Math.round((1 - fy) * pdfInfo.height),
       text: '', fontSize, fontColor, opacity,
+      underline: false,
     };
     setAnns(prev => [...prev, newAnn]);
     setEditingId(id);
@@ -155,32 +156,41 @@ export default function EditPdfClient() {
     setMode('select');
   };
 
-  /* ── commit inline edit ─────────────────────────────────────────────────── */
-  const commitEdit = () => {
-    if (!editingId) return;
-    if (!editText.trim()) {
-      setAnns(prev => prev.filter(a => a.id !== editingId));
-    } else {
-      setAnns(prev => prev.map(a =>
-        a.id === editingId ? { ...a, text: editText } : a
-      ));
-    }
-    setEditingId(null);
-    setEditText('');
-  };
+  /* ── commit / cancel edit ─────────────────────────────────────────────── */
+  const commitEdit = useCallback(() => {
+    setEditingId(id => {
+      if (!id) return null;
+      setEditText(txt => {
+        setAnns(prev => {
+          if (!txt.trim()) return prev.filter(a => a.id !== id);
+          return prev.map(a => a.id === id ? { ...a, text: txt } : a);
+        });
+        return '';
+      });
+      return null;
+    });
+  }, []);
 
-  /* double-click confirmed annotation → re-edit */
-  const handleAnnDblClick = (e: React.MouseEvent, ann: TextAnn) => {
-    e.stopPropagation();
+  const openEdit = (ann: TextAnn) => {
+    if (editingId && editingId !== ann.id) {
+      // commit previous
+      setAnns(prev => {
+        const cur = prev.find(a => a.id === editingId) as TextAnn | undefined;
+        if (!cur) return prev;
+        if (!editText.trim()) return prev.filter(a => a.id !== editingId);
+        return prev.map(a => a.id === editingId ? { ...a, text: editText } : a);
+      });
+    }
     setEditingId(ann.id);
     setEditText(ann.text);
   };
 
-  /* ── drag: mousedown on annotation label OR drag-handle ─────────────────── */
+  /* ── drag (annotation move) ──────────────────────────────────────────── */
   const startDrag = (e: React.MouseEvent, ann: TextAnn) => {
     e.stopPropagation();
-    e.preventDefault();          // ← prevents input blur while editing
+    e.preventDefault();
     if (!imgRef.current) return;
+    mouseDownPos.current = { x: e.clientX, y: e.clientY };
     const r   = imgRef.current.getBoundingClientRect();
     const cfx = (e.clientX - r.left) / r.width;
     const cfy = (e.clientY - r.top)  / r.height;
@@ -188,7 +198,7 @@ export default function EditPdfClient() {
     setDragId(ann.id);
   };
 
-  /* ── container mouse events (handles drag + erase simultaneously) ─────── */
+  /* ── container mouse events ──────────────────────────────────────────── */
   const handleWrapMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!imgRef.current || !pdfInfo) return;
     const r  = imgRef.current.getBoundingClientRect();
@@ -206,57 +216,94 @@ export default function EditPdfClient() {
       }));
     }
 
-    if (mode === 'erase' && eraseStart) setEraseDrag({ fx, fy });
+    if ((mode === 'erase' || mode === 'highlight') && drawStart) setDrawDrag({ fx, fy });
   };
 
   const handleWrapMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (dragId) { setDragId(null); return; }
+    /* ── annotation drag / click ── */
+    if (dragId) {
+      const moved = mouseDownPos.current
+        ? Math.abs(e.clientX - mouseDownPos.current.x) > 5 || Math.abs(e.clientY - mouseDownPos.current.y) > 5
+        : true;
 
-    if (mode === 'erase' && eraseStart && pdfInfo) {
+      if (!moved) {
+        /* it was a click → open edit */
+        const ann = anns.find(a => a.id === dragId);
+        if (ann?.type === 'text') openEdit(ann as TextAnn);
+      }
+      setDragId(null);
+      mouseDownPos.current = null;
+      return;
+    }
+
+    /* ── erase / highlight draw ── */
+    if ((mode === 'erase' || mode === 'highlight') && drawStart && pdfInfo) {
       const r   = imgRef.current!.getBoundingClientRect();
       const fx  = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
       const fy  = Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height));
-      const fx1 = Math.min(eraseStart.fx, fx);
-      const fy1 = Math.min(eraseStart.fy, fy);
-      const fw  = Math.abs(fx - eraseStart.fx);
-      const fh  = Math.abs(fy - eraseStart.fy);
+      const fx1 = Math.min(drawStart.fx, fx);
+      const fy1 = Math.min(drawStart.fy, fy);
+      const fw  = Math.abs(fx - drawStart.fx);
+      const fh  = Math.abs(fy - drawStart.fy);
+
       if (fw >= 0.005 && fh >= 0.005) {
-        setAnns(prev => [...prev, {
-          id: uid(), type: 'erase', page,
-          fx: fx1, fy: fy1, fw, fh,
-          x:      Math.round(fx1 * pdfInfo.width),
-          y:      Math.round((1 - (fy1 + fh)) * pdfInfo.height),
-          width:  Math.round(fw  * pdfInfo.width),
-          height: Math.round(fh  * pdfInfo.height),
-        }]);
+        if (mode === 'erase') {
+          setAnns(prev => [...prev, {
+            id: uid(), type: 'erase', page,
+            fx: fx1, fy: fy1, fw, fh,
+            x:      Math.round(fx1 * pdfInfo.width),
+            y:      Math.round((1 - (fy1 + fh)) * pdfInfo.height),
+            width:  Math.round(fw  * pdfInfo.width),
+            height: Math.round(fh  * pdfInfo.height),
+          }]);
+        } else {
+          setAnns(prev => [...prev, {
+            id: uid(), type: 'highlight', page,
+            fx: fx1, fy: fy1, fw, fh,
+            x:      Math.round(fx1 * pdfInfo.width),
+            y:      Math.round((1 - (fy1 + fh)) * pdfInfo.height),
+            width:  Math.round(fw  * pdfInfo.width),
+            height: Math.round(fh  * pdfInfo.height),
+            color: highlightColor,
+            opacity: 50,
+          }]);
+        }
       }
-      setEraseStart(null); setEraseDrag(null);
+      setDrawStart(null); setDrawDrag(null);
     }
   };
 
-  /* erase: mousedown on PDF image */
   const handleImgMouseDown = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (mode !== 'erase') return;
+    if (mode !== 'erase' && mode !== 'highlight') {
+      /* click on PDF canvas outside annotations → commit any open edit */
+      if (editingId) commitEdit();
+      return;
+    }
     e.preventDefault();
     const r   = imgRef.current!.getBoundingClientRect();
     const pos = {
       fx: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
       fy: Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height)),
     };
-    setEraseStart(pos); setEraseDrag(pos);
+    setDrawStart(pos); setDrawDrag(pos);
   };
 
   /* ── download ─────────────────────────────────────────────────────────── */
   const download = async () => {
     if (!file || anns.length === 0) return;
+    if (editingId) commitEdit();
     setDl(true); setError('');
     try {
       const elements = anns.map(a => {
         if (a.type === 'erase')
           return { type: 'erase', page: a.page, x: a.x, y: a.y, width: a.width, height: a.height };
+        if (a.type === 'highlight')
+          return { type: 'highlight', page: a.page, x: a.x, y: a.y, width: a.width, height: a.height,
+                   color: a.color, opacity: a.opacity };
         const t = a as TextAnn;
         return { type: 'text', text: t.text, page: t.page, x: t.x, y: t.y,
-                 font_size: t.fontSize, font_color: t.fontColor, opacity: t.opacity, rotation: 0 };
+                 font_size: t.fontSize, font_color: t.fontColor, opacity: t.opacity, rotation: 0,
+                 underline: t.underline };
       });
       const fd = new FormData();
       fd.append('file', file);
@@ -292,7 +339,7 @@ export default function EditPdfClient() {
           <div className="text-7xl">📄</div>
           <div className="text-center">
             <p className="text-xl font-bold text-gray-700">{busy ? 'Loading PDF…' : 'Click or drag a PDF here'}</p>
-            <p className="text-sm text-gray-400 mt-1">Add text · Drag to position · Erase content</p>
+            <p className="text-sm text-gray-400 mt-1">Add text · Highlight · Underline · Erase content</p>
           </div>
           {error && <p className="text-red-500 text-sm bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
           <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
@@ -302,16 +349,16 @@ export default function EditPdfClient() {
     </div>
   );
 
-  const curAnns   = anns.filter(a => a.page === page);
-  const img       = cache[page];
-  const total     = anns.length;
+  const curAnns = anns.filter(a => a.page === page);
+  const img     = cache[page];
+  const total   = anns.length;
 
-  /* live erase selection rect */
-  const eraseRect = eraseStart && eraseDrag ? {
-    left:   `${Math.min(eraseStart.fx, eraseDrag.fx) * 100}%`,
-    top:    `${Math.min(eraseStart.fy, eraseDrag.fy) * 100}%`,
-    width:  `${Math.abs(eraseDrag.fx - eraseStart.fx) * 100}%`,
-    height: `${Math.abs(eraseDrag.fy - eraseStart.fy) * 100}%`,
+  /* live draw rect */
+  const drawRect = drawStart && drawDrag ? {
+    left:   `${Math.min(drawStart.fx, drawDrag.fx) * 100}%`,
+    top:    `${Math.min(drawStart.fy, drawDrag.fy) * 100}%`,
+    width:  `${Math.abs(drawDrag.fx - drawStart.fx) * 100}%`,
+    height: `${Math.abs(drawDrag.fy - drawStart.fy) * 100}%`,
   } : null;
 
   /* ─────────────────── editor screen ─────────────────────────────────── */
@@ -322,7 +369,7 @@ export default function EditPdfClient() {
       <div className="bg-white border-b px-4 py-2 flex items-center gap-2 flex-wrap shrink-0 shadow-sm">
         <Link href="/" className="text-gray-400 hover:text-gray-600 text-sm mr-1">← Back</Link>
 
-        {/* Add Text button — immediately opens a text box on the PDF */}
+        {/* Add Text */}
         <button
           onClick={handleAddText}
           className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 active:scale-95 shadow-sm transition-all"
@@ -330,43 +377,54 @@ export default function EditPdfClient() {
           ✏️ Add Text
         </button>
 
-        {/* Erase mode toggle */}
+        {/* Highlight */}
+        <button
+          onClick={() => setMode(m => m === 'highlight' ? 'select' : 'highlight')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+            mode === 'highlight' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          🖊 {mode === 'highlight' ? 'Highlighting…' : 'Highlight'}
+        </button>
+
+        {/* Highlight color picker */}
+        {mode === 'highlight' && (
+          <div className="flex items-center gap-1.5 border-l border-gray-200 pl-2">
+            <span className="text-[10px] text-gray-400">Color</span>
+            {['#ffff00','#a8f5a8','#add8e6','#ffb6c1','#ffd700','#ff9966'].map(c => (
+              <button
+                key={c}
+                onClick={() => setHlColor(c)}
+                className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+                style={{
+                  background: c,
+                  borderColor: highlightColor === c ? '#1d4ed8' : '#e5e7eb',
+                  outline: highlightColor === c ? '2px solid #93c5fd' : 'none',
+                  outlineOffset: '1px',
+                }}
+              />
+            ))}
+            <input type="color" value={highlightColor}
+              onChange={e => setHlColor(e.target.value)}
+              className="w-6 h-6 rounded cursor-pointer border border-gray-200 p-0.5 bg-gray-50" />
+          </div>
+        )}
+
+        {/* Erase */}
         <button
           onClick={() => setMode(m => m === 'erase' ? 'select' : 'erase')}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-            mode === 'erase'
-              ? 'bg-red-500 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            mode === 'erase' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
           ⬜ {mode === 'erase' ? 'Erasing…' : 'Erase'}
         </button>
 
-        {/* Text style controls */}
-        <div className="flex items-center gap-2 border-l border-gray-200 pl-2 flex-wrap">
-          <span className="text-xs text-gray-400">Size</span>
-          <input type="number" value={fontSize} min={6} max={96}
-            onChange={e => {
-              const v = Number(e.target.value); setFontSize(v);
-              if (editingId) setAnns(p => p.map(a => a.id === editingId ? { ...a, fontSize: v } : a));
-            }}
-            className="w-14 border border-gray-200 rounded px-2 py-1 text-sm text-center bg-gray-50" />
-          <span className="text-xs text-gray-400">Color</span>
-          <input type="color" value={fontColor}
-            onChange={e => {
-              setFontColor(e.target.value);
-              if (editingId) setAnns(p => p.map(a => a.id === editingId ? { ...a, fontColor: e.target.value } : a));
-            }}
-            className="w-8 h-8 rounded cursor-pointer border border-gray-200 p-0.5 bg-gray-50" />
-          <span className="text-xs text-gray-400">Opacity%</span>
-          <input type="number" value={opacity} min={10} max={100}
-            onChange={e => setOpacity(Number(e.target.value))}
-            className="w-16 border border-gray-200 rounded px-2 py-1 text-sm text-center bg-gray-50" />
-        </div>
-
-        {mode === 'erase' && (
-          <span className="text-xs text-red-500 bg-red-50 px-3 py-1 rounded-full font-medium">
-            Drag on PDF to erase
+        {mode !== 'select' && (
+          <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+            mode === 'erase' ? 'text-red-500 bg-red-50' : 'text-yellow-700 bg-yellow-50'
+          }`}>
+            Drag on PDF to {mode === 'erase' ? 'erase' : 'highlight'}
           </span>
         )}
 
@@ -389,9 +447,7 @@ export default function EditPdfClient() {
           {Array.from({ length: pdfInfo.pageCount }, (_, i) => i + 1).map(p => (
             <button key={p} onClick={() => setPage(p)}
               className={`w-14 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
-                p === page
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-100 text-gray-400 hover:border-blue-200'
+                p === page ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 text-gray-400 hover:border-blue-200'
               }`}>
               {p}
               {anns.some(a => a.page === p) && (
@@ -401,18 +457,15 @@ export default function EditPdfClient() {
           ))}
         </div>
 
-        {/* ── PDF canvas wrapper ───────────────────────────────────────────────
-         *  onMouseMove / onMouseUp live here so drag & erase keep working
-         *  even when the cursor leaves the annotation or img bounds.          */}
+        {/* ── PDF canvas ── */}
         <div
           className="flex-1 overflow-auto flex justify-center items-start p-6 bg-gray-100"
           onMouseMove={handleWrapMouseMove}
           onMouseUp={handleWrapMouseUp}
-          onMouseLeave={() => { setDragId(null); setEraseStart(null); setEraseDrag(null); }}
+          onMouseLeave={() => { setDragId(null); setDrawStart(null); setDrawDrag(null); mouseDownPos.current = null; }}
         >
           <div ref={canvasWrapRef} className="relative shadow-2xl rounded-sm select-none">
 
-            {/* PDF page image */}
             {!img || busy ? (
               <div className="w-[595px] h-[842px] bg-white border border-gray-200 flex items-center justify-center rounded">
                 <div className="text-center">
@@ -432,14 +485,35 @@ export default function EditPdfClient() {
                 draggable={false}
                 onMouseDown={handleImgMouseDown}
                 className="block max-w-[780px] w-full rounded border border-gray-200"
-                style={{ cursor: mode === 'erase' ? 'crosshair' : 'default', display: 'block' }}
+                style={{ cursor: mode !== 'select' ? 'crosshair' : 'default', display: 'block' }}
               />
             )}
 
             {/* ── annotation overlays ── */}
             {img && curAnns.map(ann => {
 
-              /* ── erase overlay ── */
+              /* highlight overlay */
+              if (ann.type === 'highlight') return (
+                <div key={ann.id} className="absolute group"
+                  style={{
+                    left:    `${ann.fx * 100}%`,
+                    top:     `${ann.fy * 100}%`,
+                    width:   `${ann.fw * 100}%`,
+                    height:  `${ann.fh * 100}%`,
+                    background: ann.color,
+                    opacity: ann.opacity / 100,
+                    pointerEvents: 'auto',
+                    mixBlendMode: 'multiply',
+                  }}>
+                  <button
+                    style={{ opacity: 1 / (ann.opacity / 100) }}
+                    onClick={e => { e.stopPropagation(); setAnns(p => p.filter(a => a.id !== ann.id)); }}
+                    className="absolute -top-2.5 -right-2.5 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] font-bold leading-none hidden group-hover:flex items-center justify-center shadow z-50"
+                  >×</button>
+                </div>
+              );
+
+              /* erase overlay */
               if (ann.type === 'erase') return (
                 <div key={ann.id} className="absolute group"
                   style={{
@@ -447,7 +521,7 @@ export default function EditPdfClient() {
                     width: `${ann.fw * 100}%`, height: `${ann.fh * 100}%`,
                     background: 'rgba(255,255,255,0.9)',
                     border: '2px dashed #ef4444', boxSizing: 'border-box',
-                    pointerEvents: 'auto', cursor: 'default',
+                    pointerEvents: 'auto',
                   }}>
                   <span className="absolute top-0.5 left-1 text-[9px] text-red-400 font-bold">ERASED</span>
                   <button
@@ -457,33 +531,31 @@ export default function EditPdfClient() {
                 </div>
               );
 
-              /* ── text annotation ── */
-              const t          = ann as TextAnn;
-              const isEditing  = editingId === t.id;
-              const isDragging = dragId    === t.id;
+              /* text annotation */
+              const t         = ann as TextAnn;
+              const isEditing = editingId === t.id;
+              const isDragging = dragId === t.id;
 
               return (
                 <div
                   key={t.id}
+                  data-ann="1"
                   className="absolute"
                   style={{
-                    left:          `${t.fx * 100}%`,
-                    top:           `${t.fy * 100}%`,
-                    zIndex:        isEditing || isDragging ? 50 : 20,
+                    left: `${t.fx * 100}%`, top: `${t.fy * 100}%`,
+                    zIndex: isEditing || isDragging ? 50 : 20,
                     pointerEvents: 'auto',
-                    userSelect:    'none',
+                    userSelect: 'none',
                   }}
                 >
                   {isEditing ? (
-
-                    /* ══ Editing box with drag handle at top ══
-                     * Size/color controls use e.preventDefault() on mousedown
-                     * so the text input NEVER loses focus while adjusting.    */
+                    /* ══ Editing box ══ */
                     <div
+                      data-ann="1"
                       className="rounded-xl shadow-2xl overflow-hidden border-2 border-blue-500 bg-white"
-                      style={{ minWidth: 210 }}
+                      style={{ minWidth: 240 }}
                     >
-                      {/* ── drag handle ── */}
+                      {/* drag handle */}
                       <div
                         className="flex items-center justify-between px-2 py-1.5 bg-blue-500 select-none"
                         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
@@ -504,24 +576,24 @@ export default function EditPdfClient() {
                           onClick={e => {
                             e.stopPropagation();
                             setAnns(p => p.filter(a => a.id !== t.id));
-                            setEditingId(null);
+                            setEditingId(null); setEditText('');
                           }}
                         >×</button>
                       </div>
 
-                      {/* ── text input ── */}
+                      {/* text input */}
                       <div className="px-2 pt-2">
                         <input
                           ref={editInputRef}
                           type="text"
                           value={editText}
                           onChange={e => setEditText(e.target.value)}
-                          onBlur={commitEdit}
                           onKeyDown={e => {
                             if (e.key === 'Enter')  { e.preventDefault(); commitEdit(); }
                             if (e.key === 'Escape') {
-                              setAnns(p => p.filter(a => a.id !== t.id));
-                              setEditingId(null);
+                              const existing = anns.find(a => a.id === t.id) as TextAnn | undefined;
+                              if (!existing?.text) { setAnns(p => p.filter(a => a.id !== t.id)); }
+                              setEditingId(null); setEditText('');
                             }
                           }}
                           placeholder="Type here…"
@@ -531,13 +603,14 @@ export default function EditPdfClient() {
                             color:       t.fontColor,
                             opacity:     t.opacity / 100,
                             fontFamily: 'Arial, sans-serif',
-                            minWidth:    150,
+                            textDecoration: t.underline ? 'underline' : 'none',
+                            minWidth: 180,
                           }}
                           onClick={e => e.stopPropagation()}
                         />
                       </div>
 
-                      {/* ── font size +/- (preventDefault keeps text input focused) ── */}
+                      {/* size controls */}
                       <div className="px-2 pt-2 flex items-center gap-1.5">
                         <span className="text-[10px] text-gray-400 mr-0.5">Size</span>
                         <button
@@ -547,7 +620,7 @@ export default function EditPdfClient() {
                             setFontSize(v);
                             setAnns(p => p.map(a => a.id === t.id ? { ...a, fontSize: v } : a));
                           }}
-                          className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-sm font-bold text-gray-700 flex items-center justify-center leading-none"
+                          className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-sm font-bold text-gray-700 flex items-center justify-center"
                         >−</button>
                         <span className="text-xs font-semibold text-gray-700 w-9 text-center">{t.fontSize}pt</span>
                         <button
@@ -557,11 +630,25 @@ export default function EditPdfClient() {
                             setFontSize(v);
                             setAnns(p => p.map(a => a.id === t.id ? { ...a, fontSize: v } : a));
                           }}
-                          className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-sm font-bold text-gray-700 flex items-center justify-center leading-none"
+                          className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-sm font-bold text-gray-700 flex items-center justify-center"
                         >+</button>
+
+                        {/* underline toggle */}
+                        <button
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => setAnns(p => p.map(a => a.id === t.id ? { ...a, underline: !t.underline } : a))}
+                          className="ml-1 w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition-all"
+                          style={{
+                            background:  t.underline ? '#3b82f6' : '#f3f4f6',
+                            color:       t.underline ? '#fff' : '#6b7280',
+                            border:      `1.5px solid ${t.underline ? '#2563eb' : '#e5e7eb'}`,
+                            textDecoration: 'underline',
+                          }}
+                          title="Underline"
+                        >U</button>
                       </div>
 
-                      {/* ── color swatches (preventDefault keeps text input focused) ── */}
+                      {/* color swatches */}
                       <div className="px-2 pt-1.5 pb-1 flex items-center gap-1 flex-wrap">
                         <span className="text-[10px] text-gray-400 mr-0.5">Color</span>
                         {['#000000','#374151','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899'].map(c => (
@@ -573,7 +660,7 @@ export default function EditPdfClient() {
                             }}
                             className="w-5 h-5 rounded-full transition-transform hover:scale-110"
                             style={{
-                              background:  c,
+                              background:   c,
                               border:      `2px solid ${t.fontColor === c ? '#3b82f6' : '#e5e7eb'}`,
                               outline:      t.fontColor === c ? '2px solid #93c5fd' : 'none',
                               outlineOffset: '1px',
@@ -582,7 +669,7 @@ export default function EditPdfClient() {
                         ))}
                       </div>
 
-                      {/* ── done button ── */}
+                      {/* done button */}
                       <div className="px-2 pb-2">
                         <button
                           onMouseDown={e => e.stopPropagation()}
@@ -593,43 +680,48 @@ export default function EditPdfClient() {
                     </div>
 
                   ) : (
-
-                    /* ══ Confirmed text label — grab to drag ══ */
+                    /* ══ Confirmed text label ══ */
                     <div
                       className="group relative whitespace-nowrap rounded px-1 py-0.5"
                       style={{
-                        fontSize:    `${t.fontSize}px`,
-                        color:        t.fontColor,
-                        opacity:      t.opacity / 100,
-                        fontFamily:  'Arial, sans-serif',
-                        lineHeight:   1.2,
-                        cursor:       isDragging ? 'grabbing' : 'grab',
-                        border:      `1.5px dashed ${isDragging ? t.fontColor + 'aa' : 'transparent'}`,
-                        transition:  'border-color 0.12s',
+                        fontSize:       `${t.fontSize}px`,
+                        color:           t.fontColor,
+                        opacity:         t.opacity / 100,
+                        fontFamily:     'Arial, sans-serif',
+                        lineHeight:      1.2,
+                        cursor:          isDragging ? 'grabbing' : 'grab',
+                        border:         `1.5px dashed ${isDragging ? t.fontColor + 'aa' : 'transparent'}`,
+                        transition:     'border-color 0.12s',
+                        textDecoration:  t.underline ? 'underline' : 'none',
                       }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = t.fontColor + '88'; }}
                       onMouseLeave={e => { if (!isDragging) (e.currentTarget as HTMLElement).style.borderColor = 'transparent'; }}
                       onMouseDown={e => startDrag(e, t)}
-                      onDoubleClick={e => handleAnnDblClick(e, t)}
+                      title="Click to edit · Drag to move"
                     >
                       {t.text}
-                      {/* delete button (shows on hover) */}
                       <button
                         onMouseDown={e => e.stopPropagation()}
                         onClick={e => { e.stopPropagation(); setAnns(p => p.filter(a => a.id !== t.id)); }}
                         className="absolute -top-2.5 -right-2.5 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] font-bold leading-none hidden group-hover:flex items-center justify-center shadow z-50"
                       >×</button>
                     </div>
-
                   )}
                 </div>
               );
             })}
 
-            {/* live erase selection preview */}
-            {eraseRect && (
+            {/* live draw preview */}
+            {drawRect && (
               <div className="absolute pointer-events-none"
-                style={{ ...eraseRect, background: 'rgba(239,68,68,0.08)', border: '2px dashed #ef4444', boxSizing: 'border-box' }}
+                style={{
+                  ...drawRect,
+                  background: mode === 'highlight'
+                    ? `${highlightColor}80`
+                    : 'rgba(239,68,68,0.08)',
+                  border: `2px dashed ${mode === 'highlight' ? '#ca8a04' : '#ef4444'}`,
+                  boxSizing: 'border-box',
+                }}
               />
             )}
           </div>
@@ -643,9 +735,9 @@ export default function EditPdfClient() {
               <span className="ml-1 text-xs font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{total}</span>
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              {mode === 'erase'
-                ? '⬜ Drag on PDF to erase'
-                : '✏️ Click "Add Text" above to add'}
+              {mode === 'erase' ? '⬜ Drag on PDF to erase'
+               : mode === 'highlight' ? '🖊 Drag on PDF to highlight'
+               : '✏️ Click "Add Text" above'}
             </p>
           </div>
 
@@ -655,8 +747,9 @@ export default function EditPdfClient() {
                 <p className="text-3xl mb-2">✏️</p>
                 <p className="text-xs text-gray-400 leading-relaxed">
                   No edits yet.<br />
-                  Click <strong className="text-blue-600">Add Text</strong> to add a text box.<br />
-                  Drag it to the exact position you want.
+                  <strong className="text-blue-600">Add Text</strong> — type &amp; position<br />
+                  <strong className="text-yellow-600">Highlight</strong> — drag over text<br />
+                  <strong className="text-red-500">Erase</strong> — drag to blank out
                 </p>
               </div>
             ) : anns.map(ann => (
@@ -664,18 +757,36 @@ export default function EditPdfClient() {
                 onClick={() => setPage(ann.page)}
                 className={`border rounded-lg p-2 text-xs cursor-pointer transition-all ${
                   ann.page === page
-                    ? ann.type === 'erase' ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50'
+                    ? ann.type === 'erase'     ? 'border-red-200 bg-red-50'
+                    : ann.type === 'highlight' ? 'border-yellow-200 bg-yellow-50'
+                    :                            'border-blue-200 bg-blue-50'
                     : 'border-gray-100 hover:border-gray-200'
                 }`}>
                 <div className="flex items-start gap-1.5">
-                  <span className={`text-sm mt-0.5 shrink-0 ${ann.type === 'erase' ? 'text-red-400' : 'text-blue-400'}`}>
-                    {ann.type === 'erase' ? '⬜' : '✏️'}
+                  <span className={`text-sm mt-0.5 shrink-0 ${
+                    ann.type === 'erase' ? 'text-red-400'
+                    : ann.type === 'highlight' ? 'text-yellow-500'
+                    : 'text-blue-400'
+                  }`}>
+                    {ann.type === 'erase' ? '⬜' : ann.type === 'highlight' ? '🟨' : '✏️'}
                   </span>
                   <div className="flex-1 min-w-0">
                     {ann.type === 'text' && (
                       <>
                         <p className="font-semibold text-gray-800 truncate">"{(ann as TextAnn).text}"</p>
-                        <p className="text-gray-400 mt-0.5">Pg {ann.page} · {(ann as TextAnn).fontSize}pt</p>
+                        <p className="text-gray-400 mt-0.5">
+                          Pg {ann.page} · {(ann as TextAnn).fontSize}pt
+                          {(ann as TextAnn).underline ? ' · U̲' : ''}
+                        </p>
+                      </>
+                    )}
+                    {ann.type === 'highlight' && (
+                      <>
+                        <p className="font-semibold text-yellow-700 flex items-center gap-1">
+                          Highlight
+                          <span className="inline-block w-3 h-3 rounded-sm border border-gray-200" style={{ background: (ann as HighlightAnn).color }} />
+                        </p>
+                        <p className="text-gray-400 mt-0.5">Pg {ann.page}</p>
                       </>
                     )}
                     {ann.type === 'erase' && (
