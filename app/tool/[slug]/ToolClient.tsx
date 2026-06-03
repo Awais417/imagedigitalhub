@@ -270,16 +270,17 @@ export default function ToolClient({ slug }: { slug: string }) {
       setDownloadUrl(url);
       // Detect actual extension from blob MIME type so e.g. split returns .pdf or .zip correctly
       const mimeToExt: Record<string, string> = {
-        'application/pdf':  'pdf',
-        'application/zip':  'zip',
-        'application/json': 'json',
-        'text/plain':       'txt',
-        'text/html':        'html',
-        'text/csv':         'csv',
-        'text/xml':         'xml',
-        'image/png':        'png',
-        'image/jpeg':       'jpg',
-        'image/webp':       'webp',
+        'application/pdf':      'pdf',
+        'application/zip':      'zip',
+        'application/json':     'json',
+        'application/x-pkcs12': 'p12',
+        'text/plain':           'txt',
+        'text/html':            'html',
+        'text/csv':             'csv',
+        'text/xml':             'xml',
+        'image/png':            'png',
+        'image/jpeg':           'jpg',
+        'image/webp':           'webp',
       };
       const detectedExt = mimeToExt[blob.type.split(';')[0].trim()] ??
         (tool.outputFormat.includes('.') ? tool.outputFormat.split('.').pop()! : tool.outputFormat);

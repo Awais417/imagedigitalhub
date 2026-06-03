@@ -1411,8 +1411,8 @@ export const TOOLS: Tool[] = [
     fileOptional: true,
     inputLabel: 'Select PDF to attach digital ID to (optional)',
     acceptedFormats: '.pdf',
-    outputFormat: 'signed.pdf',
-    outputMime: 'application/pdf',
+    outputFormat: 'digital-id.p12',
+    outputMime: 'application/x-pkcs12',
     params: [
       { name: 'name',         label: 'Full Name',     type: 'text', defaultValue: '', placeholder: 'Your full name' },
       { name: 'organization', label: 'Organization',  type: 'text', defaultValue: '', placeholder: 'Company name'  },
