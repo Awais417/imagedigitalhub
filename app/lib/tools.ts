@@ -1272,9 +1272,7 @@ export const TOOLS: Tool[] = [
     acceptedFormats: '.pdf',
     outputFormat: 'unlocked.pdf',
     outputMime: 'application/pdf',
-    params: [
-      { name: 'password', label: 'Current Password', type: 'password', placeholder: 'Enter current password', defaultValue: '' },
-    ],
+    params: [],
     seoTitle: 'Free PDF Unlock Tool | Remove PDF Password Online',
     seoDescription: 'Use our free PDF unlock tool to remove password from PDF instantly online. Fast, easy, and 100% free—no installation needed. Try GoDocLab now!',
   },
