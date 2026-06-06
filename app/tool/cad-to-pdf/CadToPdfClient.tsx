@@ -134,32 +134,66 @@ async function renderDxfToCanvas(canvas: HTMLCanvasElement, text: string) {
    COMPONENT
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function CadToPdfClient() {
-  const [file, setFile]           = useState<File | null>(null);
-  const [dragging, setDragging]   = useState(false);
-  const [previewReady, setPreviewReady] = useState(false);
-  const [previewError, setPreviewError] = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState('');
-  const [downloadUrl, setDownloadUrl]   = useState('');
-  const [downloadName, setDownloadName] = useState('');
+  const [file, setFile]               = useState<File | null>(null);
+  const [dragging, setDragging]       = useState(false);
+  const [previewReady, setPreviewReady]   = useState(false);
+  const [previewError, setPreviewError]   = useState('');
+  const [dwgPreviewUrl, setDwgPreviewUrl] = useState('');
+  const [dwgPreviewLoading, setDwgPreviewLoading] = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState('');
+  const [downloadUrl, setDownloadUrl]     = useState('');
+  const [downloadName, setDownloadName]   = useState('');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef   = useRef<HTMLInputElement>(null);
 
   const ext = file?.name.split('.').pop()?.toLowerCase() ?? '';
 
-  /* ── render preview when file changes ── */
+  /* ── render / fetch preview when file changes ── */
   useEffect(() => {
-    setPreviewReady(false); setPreviewError('');
+    setPreviewReady(false);
+    setPreviewError('');
+    setDwgPreviewLoading(false);
+    // Revoke any existing object URL
+    setDwgPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return ''; });
+
     if (!file) return;
+
     if (ext === 'dxf') {
+      /* DXF — render client-side */
       file.text().then(async text => {
         if (!canvasRef.current) return;
         const ok = await renderDxfToCanvas(canvasRef.current, text);
         if (ok) setPreviewReady(true);
         else    setPreviewError('Could not parse DXF for preview.');
       });
+    } else if (ext === 'dwg' || ext === 'dwf') {
+      /* DWG / DWF — fetch PNG preview from backend */
+      setDwgPreviewLoading(true);
+      const form = new FormData();
+      form.append('file', file);
+      fetch(`${API_BASE}/pdf/cad-preview`, {
+        method: 'POST', headers: authHdrs(), body: form,
+      })
+        .then(async res => {
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({ message: res.statusText }));
+            throw new Error(body.message || `HTTP ${res.status}`);
+          }
+          return res.blob();
+        })
+        .then(blob => {
+          setDwgPreviewUrl(URL.createObjectURL(blob));
+        })
+        .catch(e => {
+          setPreviewError((e as Error).message);
+        })
+        .finally(() => {
+          setDwgPreviewLoading(false);
+        });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, ext]);
 
   /* ── load file ── */
@@ -196,7 +230,9 @@ export default function CadToPdfClient() {
 
   /* ── reset ── */
   const reset = () => {
+    if (dwgPreviewUrl) URL.revokeObjectURL(dwgPreviewUrl);
     setFile(null); setPreviewReady(false); setPreviewError('');
+    setDwgPreviewUrl(''); setDwgPreviewLoading(false);
     setDownloadUrl(''); setDownloadName(''); setError('');
   };
 
@@ -267,10 +303,11 @@ export default function CadToPdfClient() {
                 <button onClick={reset} className="text-gray-300 hover:text-red-400 text-lg">×</button>
               </div>
 
-              {/* Canvas preview */}
+              {/* Preview area */}
               <div className="relative bg-[#0d1117] flex items-center justify-center"
                    style={{ minHeight: 340 }}>
                 {ext === 'dxf' ? (
+                  /* DXF — client-side canvas */
                   <>
                     <canvas
                       ref={canvasRef}
@@ -293,17 +330,30 @@ export default function CadToPdfClient() {
                     )}
                   </>
                 ) : (
-                  /* DWG / DWF — no client-side preview possible */
-                  <div className="flex flex-col items-center justify-center gap-4 p-10 text-center">
-                    <div className="text-6xl opacity-30">🗂️</div>
-                    <p className="text-green-400 font-mono text-sm">.{ext.toUpperCase()} file loaded</p>
-                    <p className="text-gray-500 text-xs">
-                      Preview not available for {ext.toUpperCase()} format.<br/>
-                      File will be converted via CloudConvert.
-                    </p>
-                    <p className="text-gray-600 text-xs font-medium">{file.name}</p>
-                    <p className="text-gray-500 text-xs">{(file.size / 1024).toFixed(1)} KB</p>
-                  </div>
+                  /* DWG / DWF — server-side PNG preview */
+                  <>
+                    {dwgPreviewLoading && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-green-400">
+                        <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm">Generating {ext.toUpperCase()} preview…</span>
+                      </div>
+                    )}
+                    {dwgPreviewUrl && !dwgPreviewLoading && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={dwgPreviewUrl}
+                        alt={`${ext.toUpperCase()} preview`}
+                        className="block w-full max-h-[500px] object-contain"
+                      />
+                    )}
+                    {previewError && !dwgPreviewLoading && !dwgPreviewUrl && (
+                      <div className="flex flex-col items-center justify-center gap-4 p-10 text-center">
+                        <span className="text-3xl">⚠️</span>
+                        <p className="text-yellow-400 text-sm">{previewError}</p>
+                        <p className="text-gray-500 text-xs font-medium">{file.name}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
